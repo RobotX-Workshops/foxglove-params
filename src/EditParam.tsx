@@ -2,11 +2,10 @@ import { PanelExtensionContext, SettingsTreeAction } from "@foxglove/extension";
 import { ReactElement, useEffect, useLayoutEffect, useState, useCallback } from "react";
 import { Config, buildSettingsTree, settingsActionReducer } from "./panelSettings";
 import { createRoot } from "react-dom/client";
+import { ParameterNameValue, ParameterValueDetails } from "parameter_types";
 
 
 function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactElement {
-
-  context.watch('parameters');
 
   const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
   const [config, setConfig] = useState<Config>(() => {
@@ -35,20 +34,90 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     });
   }, [config, context, settingsActionHandler]);
 
-  const updateNodeList = () => {
-    console.log("retreiving nodes...")
-    context.callService?.("/rosapi/nodes", {})
-    .then((_values: unknown) =>{
-      setConfig({...config, availableNodeNames: ((_values as any).nodes as string[]).sort()});
-      console.log("nodes retreived");
-    })
-    .catch((_error: Error) => {  console.error(_error.toString()); });
-  }
 
+  useEffect(() => {
+  /**
+   * Retrieves a list of all parameters for the current node and their values
+   */
+  context.callService?.(config.selectedNode + "/list_parameters", {})
+    .then((_value: unknown) => {
+      const paramNameList = (_value as any).result.names as string[];
+      
+      // Return the next promise to enable proper chaining
+      return { paramNameList, promise: context.callService?.(config.selectedNode + "/get_parameters", { names: paramNameList }) };
+    })
+    .then((data) => {
+      if (!data || !data.promise) return;
+      
+      const { paramNameList, promise } = data;
+      
+      return promise.then((_valueResult: unknown) => {
+        const paramValList = (_valueResult as any).values as ParameterValueDetails[];
+        
+        // Create combined parameter objects with names and values
+        const tempList: Array<ParameterNameValue> = paramNameList.map((name, i) => ({
+          name: name,
+          value: paramValList[i]!
+        }));
+        
+        // Only update state if we have parameters
+        if (tempList.length > 0) {
+          setConfig({ ...config, selectedNodeAvailableParams: tempList});
+        }
+      });
+    })
+    .catch((error) => {
+      console.error(`error, failed to retrieve parameters: ${error.message}`);
+    });
+  }, [config.selectedNode, context]);
+
+   /**
+   * Updates the list of nodes when a new node appears
+   */
+  const updateNodeList = () => {
+    console.log("retrieving nodes...")
+    context.callService?.("/rosapi/nodes", {})
+    .then((_values: unknown) => {
+      const nodeNames = (_values as any).nodes as string[];
+      console.log("Received node names", nodeNames);
+      
+      if (nodeNames.length === 0) {
+        console.log("No nodes found");
+        return;
+      }
+      
+      // Sort both arrays for comparison
+      const sortedNewNodes = [...nodeNames].sort();
+      const sortedCurrentNodes = [...config.availableNodeNames].sort();
+      
+      // Check if arrays have different lengths or different content
+      let nodesChanged = sortedNewNodes.length !== sortedCurrentNodes.length;
+      
+      if (!nodesChanged) {
+        // Arrays are the same length, check if contents match
+        for (let i = 0; i < sortedNewNodes.length; i++) {
+          if (sortedNewNodes[i] !== sortedCurrentNodes[i]) {
+            nodesChanged = true;
+            break;
+          }
+        }
+      }
+      
+      if (nodesChanged) {
+        console.log("Node names changed, updating config");
+        setConfig({...config, availableNodeNames: sortedNewNodes});
+      } else {
+        console.log("No change in node names");
+      }
+    })
+    .catch((_error: Error) => { console.error(_error.toString()); });
+  }
   updateNodeList();
+
 
   // We use a layout effect to setup render handling for our panel. We also setup some topic subscriptions.
   useLayoutEffect(() => {
+    console.log("Setting up render handler");
     // The render handler is run by the broader studio system during playback when your panel
     // needs to render because the fields it is watching have changed. How you handle rendering depends on your framework.
     // You can only setup one render handler - usually early on in setting up your panel.
@@ -62,10 +131,8 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
       // rendering before the next render call, studio shows a notification to the user that your panel is delayed.
       //
       // Set the done callback into a state variable to trigger a re-render.
-      setRenderDone(() => done);
-      
       console.log("Render state params", renderState.parameters);
-
+      setRenderDone(() => done);
     };
 
   }, [context]);
@@ -82,7 +149,7 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     return (
       <input
         type="number"
-        value={config.selectedNodeAvailableParams[0]}
+        value={config.selectedNodeAvailableParams[0]?.value.double_value}
         onChange={(e) => {
           context.setParameter(config.selectedParameter, e.target.value);
         }}
@@ -94,7 +161,7 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     return (
       <input
         type="range"
-        value={config.selectedNodeAvailableParams[0]}
+        value={config.selectedNodeAvailableParams[0]?.value.double_value}
         onChange={(e) => {
           context.setParameter(config.selectedParameter, e.target.value);
         }}
@@ -106,7 +173,7 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     return (
       <input
         type="checkbox"
-        checked={config.selectedNodeAvailableParams[0] === "true"}
+        checked={config.selectedNodeAvailableParams[0]?.value.bool_value}
         onChange={(e) => {
           context.setParameter(config.selectedParameter, e.target.checked.toString());
         }}
@@ -114,28 +181,11 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
       />
     );
   }
-  if (config.inputType === "select") {
-    return (
-      <select
-        value={config.selectedNodeAvailableParams[0]}
-        onChange={(e) => {
-          context.setParameter(config.selectedParameter, e.target.value);
-        }}
-        style={{ padding: "1rem" }}
-      >
-        {config.selectedNodeAvailableParams.map((param) => (
-          <option key={param} value={param}>
-            {param}
-          </option>
-        ))}
-      </select>
-    );
-  }
   if (config.inputType === "text") {
     return (
       <input
         type="text"
-        value={config.selectedNodeAvailableParams[0]}
+        value={config.selectedNodeAvailableParams[0]?.value.string_value}
         onChange={(e) => {
           context.setParameter(config.selectedParameter, e.target.value);
         }}

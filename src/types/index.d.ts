@@ -1,11 +1,11 @@
 declare module "parameter_types" {
 
-    export type Parameter = {
+    export type ParameterNameValue = {
         name: string;
-        value: ParameterValue;
+        value: ParameterValueDetails;
     }
 
-    export type ParameterValue = {
+    export type ParameterValueDetails = {
         type: number;
         bool_value: boolean;
         integer_value: number;

@@ -1,4 +1,6 @@
 import { SettingsTreeNodes, SettingsTreeFields, SettingsTreeAction } from "@foxglove/extension";
+import { ParameterNameValue } from "parameter_types";
+
 import { produce } from "immer";
 import * as _ from "lodash-es";
 
@@ -6,7 +8,7 @@ export type Config = {
   selectedNode: string;
   availableNodeNames: Array<string>;
   selectedParameter: string;
-  selectedNodeAvailableParams: Array<string>;
+  selectedNodeAvailableParams: Array<ParameterNameValue>;
   inputType: "number" | "slider" | "boolean" | "select" | "text";
 };
 
@@ -36,9 +38,9 @@ export function buildSettingsTree(config: Config, ): SettingsTreeNodes {
       input: "select",
       disabled: config.selectedNodeAvailableParams.length === 0,
       value: config.selectedParameter,
-      options: config.selectedNodeAvailableParams.map((name) => ({
-        label: name,
-        value: name,
+      options: config.selectedNodeAvailableParams.map((parameter) => ({
+        label: parameter.name,
+        value: parameter.name,
       })),
     },
     inputType: {
