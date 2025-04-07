@@ -1,12 +1,34 @@
-import { Immutable, MessageEvent, PanelExtensionContext, Topic } from "@foxglove/extension";
-import { ReactElement, useEffect, useLayoutEffect, useState } from "react";
+import { PanelExtensionContext, SettingsTreeAction } from "@foxglove/extension";
+import { ReactElement, useEffect, useLayoutEffect, useState, useCallback } from "react";
+import { Config, buildSettingsTree, settingsActionReducer } from "./panelSettings";
 import { createRoot } from "react-dom/client";
 
 function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactElement {
-  const [topics, setTopics] = useState<undefined | Immutable<Topic[]>>();
-  const [messages, setMessages] = useState<undefined | Immutable<MessageEvent[]>>();
 
   const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
+  const [config, setConfig] = useState<Config>(() => {
+    const partialConfig = context.initialState as Partial<Config>;
+    partialConfig.selectedNode = partialConfig.selectedNode ?? "";
+    partialConfig.availableNodeNames = partialConfig.availableNodeNames ?? [];
+    partialConfig.selectedParameter = partialConfig.selectedParameter ?? "";
+    partialConfig.selectedNodeAvailableParams = partialConfig.selectedNodeAvailableParams ?? [];
+    partialConfig.inputType = partialConfig.inputType ?? "number";
+    return partialConfig as Config;
+  });
+
+  const settingsActionHandler = useCallback(
+    (action: SettingsTreeAction) => {
+      setConfig((prevConfig) => settingsActionReducer(prevConfig, action));
+    },
+    [setConfig],
+  );
+  // Register the settings tree
+  useEffect(() => {
+    context.updatePanelSettingsEditor({
+      actionHandler: settingsActionHandler,
+      nodes: buildSettingsTree(config),
+    });
+  }, [config, context, settingsActionHandler]);
 
   // We use a layout effect to setup render handling for our panel. We also setup some topic subscriptions.
   useLayoutEffect(() => {
@@ -24,28 +46,10 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
       //
       // Set the done callback into a state variable to trigger a re-render.
       setRenderDone(() => done);
-
-      // We may have new topics - since we are also watching for messages in the current frame, topics may not have changed
-      // It is up to you to determine the correct action when state has not changed.
-      setTopics(renderState.topics);
-
-      // currentFrame has messages on subscribed topics since the last render call
-      setMessages(renderState.currentFrame);
+      
+      console.log("Render state params", renderState.parameters);
     };
 
-    // After adding a render handler, you must indicate which fields from RenderState will trigger updates.
-    // If you do not watch any fields then your panel will never render since the panel context will assume you do not want any updates.
-
-    // tell the panel context that we care about any update to the _topic_ field of RenderState
-    context.watch("topics");
-
-    // tell the panel context we want messages for the current frame for topics we've subscribed to
-    // This corresponds to the _currentFrame_ field of render state.
-    context.watch("currentFrame");
-
-    // subscribe to some topics, you could do this within other effects, based on input fields, etc
-    // Once you subscribe to topics, currentFrame will contain message events from those topics (assuming there are messages).
-    context.subscribe([{ topic: "/some/topic" }]);
   }, [context]);
 
   // invoke the done callback once the render is complete
@@ -53,27 +57,75 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     renderDone?.();
   }, [renderDone]);
 
-  return (
-    <div style={{ padding: "1rem" }}>
-      <h2>Welcome to your new extension panel!</h2>
-      <p>
-        Check the{" "}
-        <a href="https://foxglove.dev/docs/studio/extensions/getting-started">documentation</a> for
-        more details on building extension panels for Foxglove Studio.
-      </p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: "0.2rem" }}>
-        <b style={{ borderBottom: "1px solid" }}>Topic</b>
-        <b style={{ borderBottom: "1px solid" }}>Schema name</b>
-        {(topics ?? []).map((topic) => (
-          <>
-            <div key={topic.name}>{topic.name}</div>
-            <div key={topic.schemaName}>{topic.schemaName}</div>
-          </>
+  if (config === undefined || config === null)
+    return <div>Loading...</div>;
+
+  if (config.inputType === "number") {
+    return (
+      <input
+        type="number"
+        value={config.selectedNodeAvailableParams[0]}
+        onChange={(e) => {
+          context.setParameter(config.selectedParameter, e.target.value);
+        }}
+        style={{ padding: "1rem" }}
+      />
+    );
+  }
+  if (config.inputType === "slider") {
+    return (
+      <input
+        type="range"
+        value={config.selectedNodeAvailableParams[0]}
+        onChange={(e) => {
+          context.setParameter(config.selectedParameter, e.target.value);
+        }}
+        style={{ padding: "1rem" }}
+      />
+    );
+  }
+  if (config.inputType === "boolean") {
+    return (
+      <input
+        type="checkbox"
+        checked={config.selectedNodeAvailableParams[0] === "true"}
+        onChange={(e) => {
+          context.setParameter(config.selectedParameter, e.target.checked.toString());
+        }}
+        style={{ padding: "1rem" }}
+      />
+    );
+  }
+  if (config.inputType === "select") {
+    return (
+      <select
+        value={config.selectedNodeAvailableParams[0]}
+        onChange={(e) => {
+          context.setParameter(config.selectedParameter, e.target.value);
+        }}
+        style={{ padding: "1rem" }}
+      >
+        {config.selectedNodeAvailableParams.map((param) => (
+          <option key={param} value={param}>
+            {param}
+          </option>
         ))}
-      </div>
-      <div>{messages?.length}</div>
-    </div>
-  );
+      </select>
+    );
+  }
+  if (config.inputType === "text") {
+    return (
+      <input
+        type="text"
+        value={config.selectedNodeAvailableParams[0]}
+        onChange={(e) => {
+          context.setParameter(config.selectedParameter, e.target.value);
+        }}
+        style={{ padding: "1rem" }}
+      />
+    );
+  }
+  return <div>Unknown input type</div>;
 }
 
 export function initEditParamPanel(context: PanelExtensionContext): () => void {
