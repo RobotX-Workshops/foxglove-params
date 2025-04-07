@@ -3,7 +3,10 @@ import { ReactElement, useEffect, useLayoutEffect, useState, useCallback } from 
 import { Config, buildSettingsTree, settingsActionReducer } from "./panelSettings";
 import { createRoot } from "react-dom/client";
 
+
 function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactElement {
+
+  context.watch('parameters');
 
   const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
   const [config, setConfig] = useState<Config>(() => {
@@ -18,17 +21,31 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
 
   const settingsActionHandler = useCallback(
     (action: SettingsTreeAction) => {
+      console.log("Settings action handler", action);
       setConfig((prevConfig) => settingsActionReducer(prevConfig, action));
     },
     [setConfig],
   );
   // Register the settings tree
   useEffect(() => {
+    console.log("Registering settings tree");
     context.updatePanelSettingsEditor({
       actionHandler: settingsActionHandler,
       nodes: buildSettingsTree(config),
     });
   }, [config, context, settingsActionHandler]);
+
+  const updateNodeList = () => {
+    console.log("retreiving nodes...")
+    context.callService?.("/rosapi/nodes", {})
+    .then((_values: unknown) =>{
+      setConfig({...config, availableNodeNames: ((_values as any).nodes as string[]).sort()});
+      console.log("nodes retreived");
+    })
+    .catch((_error: Error) => {  console.error(_error.toString()); });
+  }
+
+  updateNodeList();
 
   // We use a layout effect to setup render handling for our panel. We also setup some topic subscriptions.
   useLayoutEffect(() => {
@@ -48,6 +65,7 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
       setRenderDone(() => done);
       
       console.log("Render state params", renderState.parameters);
+
     };
 
   }, [context]);
