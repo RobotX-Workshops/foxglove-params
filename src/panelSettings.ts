@@ -23,7 +23,7 @@ export function settingsActionReducer(prevConfig: Config, action: SettingsTreeAc
 
 export function buildSettingsTree(config: Config, ): SettingsTreeNodes {
   const dataSourceFields: SettingsTreeFields = {
-    node: {
+    selectedNode: {
       label: "Node",
       input: "select",
       value: config.selectedNode,
@@ -33,7 +33,7 @@ export function buildSettingsTree(config: Config, ): SettingsTreeNodes {
       })),
       disabled: config.availableNodeNames.length === 0,
     },
-    parameter: {
+    selectedParameter: {
       label: "Parameter",
       input: "select",
       disabled: config.selectedNodeAvailableParams.length === 0,

@@ -21,7 +21,13 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
   const settingsActionHandler = useCallback(
     (action: SettingsTreeAction) => {
       console.log("Settings action handler", action);
-      setConfig((prevConfig) => settingsActionReducer(prevConfig, action));
+      // setConfig((prevConfig) => settingsActionReducer(prevConfig, action));
+      setConfig((prevConfig) => {
+        const newConfig = settingsActionReducer(prevConfig, action);
+        console.log("New config", newConfig);
+        return newConfig;
+      }
+      );
     },
     [setConfig],
   );
