@@ -42,81 +42,85 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
 
 
   useEffect(() => {
-  /**
-   * Retrieves a list of all parameters for the current node and their values
-   */
-  context.callService?.(config.selectedNode + "/list_parameters", {})
-    .then((_value: unknown) => {
-      const paramNameList = (_value as any).result.names as string[];
-      
-      // Return the next promise to enable proper chaining
-      return { paramNameList, promise: context.callService?.(config.selectedNode + "/get_parameters", { names: paramNameList }) };
-    })
-    .then((data) => {
-      if (!data || !data.promise) return;
-      
-      const { paramNameList, promise } = data;
-      
-      return promise.then((_valueResult: unknown) => {
-        const paramValList = (_valueResult as any).values as ParameterValueDetails[];
-        
-        // Create combined parameter objects with names and values
-        const tempList: Array<ParameterNameValue> = paramNameList.map((name, i) => ({
-          name: name,
-          value: paramValList[i]!
-        }));
-        
-        // Only update state if we have parameters
-        if (tempList.length > 0) {
-          setConfig({ ...config, selectedNodeAvailableParams: tempList});
-        }
+    // Reset editing value when the selected node changes
+    console.log("Selected node changed, resetting editing value");
+    setConfig((prevConfig) => ({ ...prevConfig, currentEditingValue: null }));
+
+    /**
+     * Retrieves a list of all parameters for the current node and their values
+     */
+    context.callService?.(config.selectedNode + "/list_parameters", {})
+      .then((_value: unknown) => {
+        const paramNameList = (_value as any).result.names as string[];
+
+        // Return the next promise to enable proper chaining
+        return { paramNameList, promise: context.callService?.(config.selectedNode + "/get_parameters", { names: paramNameList }) };
+      })
+      .then((data) => {
+        if (!data || !data.promise) return;
+
+        const { paramNameList, promise } = data;
+
+        return promise.then((_valueResult: unknown) => {
+          const paramValList = (_valueResult as any).values as ParameterValueDetails[];
+
+          // Create combined parameter objects with names and values
+          const tempList: Array<ParameterNameValue> = paramNameList.map((name, i) => ({
+            name: name,
+            value: paramValList[i]!
+          }));
+
+          // Only update state if we have parameters
+          if (tempList.length > 0) {
+            setConfig({ ...config, selectedNodeAvailableParams: tempList });
+          }
+        });
+      })
+      .catch((error) => {
+        console.error(`error, failed to retrieve parameters: ${error.message}`);
       });
-    })
-    .catch((error) => {
-      console.error(`error, failed to retrieve parameters: ${error.message}`);
-    });
   }, [config.selectedNode, context]);
 
-   /**
-   * Updates the list of nodes when a new node appears
-   */
+  /**
+  * Updates the list of nodes when a new node appears
+  */
   const updateNodeList = () => {
     console.log("retrieving nodes...")
     context.callService?.("/rosapi/nodes", {})
-    .then((_values: unknown) => {
-      const nodeNames = (_values as any).nodes as string[];
-      console.log("Received node names", nodeNames);
-      
-      if (nodeNames.length === 0) {
-        console.log("No nodes found");
-        return;
-      }
-      
-      // Sort both arrays for comparison
-      const sortedNewNodes = [...nodeNames].sort();
-      const sortedCurrentNodes = [...config.availableNodeNames].sort();
-      
-      // Check if arrays have different lengths or different content
-      let nodesChanged = sortedNewNodes.length !== sortedCurrentNodes.length;
-      
-      if (!nodesChanged) {
-        // Arrays are the same length, check if contents match
-        for (let i = 0; i < sortedNewNodes.length; i++) {
-          if (sortedNewNodes[i] !== sortedCurrentNodes[i]) {
-            nodesChanged = true;
-            break;
+      .then((_values: unknown) => {
+        const nodeNames = (_values as any).nodes as string[];
+        console.log("Received node names", nodeNames);
+
+        if (nodeNames.length === 0) {
+          console.log("No nodes found");
+          return;
+        }
+
+        // Sort both arrays for comparison
+        const sortedNewNodes = [...nodeNames].sort();
+        const sortedCurrentNodes = [...config.availableNodeNames].sort();
+
+        // Check if arrays have different lengths or different content
+        let nodesChanged = sortedNewNodes.length !== sortedCurrentNodes.length;
+
+        if (!nodesChanged) {
+          // Arrays are the same length, check if contents match
+          for (let i = 0; i < sortedNewNodes.length; i++) {
+            if (sortedNewNodes[i] !== sortedCurrentNodes[i]) {
+              nodesChanged = true;
+              break;
+            }
           }
         }
-      }
-      
-      if (nodesChanged) {
-        console.log("Node names changed, updating config");
-        setConfig({...config, availableNodeNames: sortedNewNodes});
-      } else {
-        console.log("No change in node names");
-      }
-    })
-    .catch((_error: Error) => { console.error(_error.toString()); });
+
+        if (nodesChanged) {
+          console.log("Node names changed, updating config");
+          setConfig({ ...config, availableNodeNames: sortedNewNodes });
+        } else {
+          console.log("No change in node names");
+        }
+      })
+      .catch((_error: Error) => { console.error(_error.toString()); });
   }
   updateNodeList();
 
@@ -155,8 +159,9 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     return (
       <input
         type="number"
-        value={config.selectedNodeAvailableParams[0]?.value.double_value}
+        value={(config.currentEditingValue || config.selectedNodeAvailableParams[0]?.value.double_value) as number}
         onChange={(e) => {
+          console.log("")
           context.setParameter(config.selectedParameter, e.target.value);
         }}
         style={{ padding: "1rem" }}
@@ -167,8 +172,9 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     return (
       <input
         type="range"
-        value={config.selectedNodeAvailableParams[0]?.value.double_value}
+        value={(config.currentEditingValue || config.selectedNodeAvailableParams[0]?.value.double_value) as number}
         onChange={(e) => {
+          console.log("inputrange", e.target.value)
           context.setParameter(config.selectedParameter, e.target.value);
         }}
         style={{ padding: "1rem" }}
@@ -179,8 +185,9 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     return (
       <input
         type="checkbox"
-        checked={config.selectedNodeAvailableParams[0]?.value.bool_value}
+        checked={(config.currentEditingValue || config.selectedNodeAvailableParams[0]?.value.bool_value) as boolean}
         onChange={(e) => {
+          console.log("", e.target.checked.toString())
           context.setParameter(config.selectedParameter, e.target.checked.toString());
         }}
         style={{ padding: "1rem" }}
@@ -191,8 +198,9 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     return (
       <input
         type="text"
-        value={config.selectedNodeAvailableParams[0]?.value.string_value}
+        value={(config.currentEditingValue || config.selectedNodeAvailableParams[0]?.value.string_value) as string}
         onChange={(e) => {
+          console.log("text", e.target.value)
           context.setParameter(config.selectedParameter, e.target.value);
         }}
         style={{ padding: "1rem" }}

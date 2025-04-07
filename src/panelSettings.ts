@@ -5,6 +5,7 @@ import { produce } from "immer";
 import * as _ from "lodash-es";
 
 export type Config = {
+  currentEditingValue: string | number | boolean | null;
   selectedNode: string;
   availableNodeNames: Array<string>;
   selectedParameter: string;
