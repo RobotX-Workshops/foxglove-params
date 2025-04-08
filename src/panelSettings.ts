@@ -8,7 +8,7 @@ export type Config = {
   currentEditingValue: string | number | boolean | null;
   selectedNode: string;
   availableNodeNames: Array<string>;
-  selectedParameter: string;
+  selectedParameterName: string;
   selectedNodeAvailableParams: Array<ParameterNameValue>;
   inputType: "number" | "slider" | "boolean" | "select" | "text";
 };
@@ -34,11 +34,11 @@ export function buildSettingsTree(config: Config, ): SettingsTreeNodes {
       })),
       disabled: config.availableNodeNames.length === 0,
     },
-    selectedParameter: {
+    selectedParameterName: {
       label: "Parameter",
       input: "select",
       disabled: config.selectedNodeAvailableParams.length === 0,
-      value: config.selectedParameter,
+      value: config.selectedParameterName,
       options: config.selectedNodeAvailableParams.map((parameter) => ({
         label: parameter.name,
         value: parameter.name,

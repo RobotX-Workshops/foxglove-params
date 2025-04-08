@@ -2,7 +2,7 @@ import { PanelExtensionContext, SettingsTreeAction } from "@foxglove/extension";
 import { ReactElement, useEffect, useLayoutEffect, useState, useCallback } from "react";
 import { Config, buildSettingsTree, settingsActionReducer } from "./panelSettings";
 import { createRoot } from "react-dom/client";
-import { ParameterNameValue, ParameterValueDetails } from "parameter_types";
+import { ParameterNameValue, ParameterValueDetails, SetSrvParam } from "parameter_types";
 
 
 function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactElement {
@@ -12,7 +12,7 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     const partialConfig = context.initialState as Partial<Config>;
     partialConfig.selectedNode = partialConfig.selectedNode ?? "";
     partialConfig.availableNodeNames = partialConfig.availableNodeNames ?? [];
-    partialConfig.selectedParameter = partialConfig.selectedParameter ?? "";
+    partialConfig.selectedParameterName = partialConfig.selectedParameterName ?? "";
     partialConfig.selectedNodeAvailableParams = partialConfig.selectedNodeAvailableParams ?? [];
     partialConfig.inputType = partialConfig.inputType ?? "number";
     return partialConfig as Config;
@@ -80,6 +80,14 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
         console.error(`error, failed to retrieve parameters: ${error.message}`);
       });
   }, [config.selectedNode, context]);
+
+  //TODO: Maybe not a good idea to reset the editing value when the selected parameter changes
+  // useEffect(() => {
+  //   // Reset editing value when the selected param changes
+  //   console.log("Selected node changed, resetting editing value");
+  //   setConfig((prevConfig) => ({ ...prevConfig, currentEditingValue: null }));
+
+  // }, [config.selectedParameter, context]);
 
   /**
   * Updates the list of nodes when a new node appears
@@ -152,56 +160,99 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     renderDone?.();
   }, [renderDone]);
 
-  if (config === undefined || config === null)
+  
+  if (config === undefined || config === null || config.selectedNodeAvailableParams === undefined || config.selectedParameterName === undefined)
     return <div>Loading...</div>;
+  
+  console.log("Current editing value", config.currentEditingValue);
 
+  const selectedNodeValue = config.selectedNodeAvailableParams.filter(x => x.name == config.selectedParameterName)[0]?.value;
+  console.log("Selected node value", selectedNodeValue);
+
+  // Check if the selected node has a valu
+  if (!selectedNodeValue) {
+    return <div>No value found. Setup correctly in panel settings</div>;
+  }
+  
   if (config.inputType === "number") {
+    const numVal = Number(config.currentEditingValue || selectedNodeValue.double_value || selectedNodeValue.integer_value);
+    console.log("numVal", numVal);
     return (
-      <input
-        type="number"
-        value={(config.currentEditingValue || config.selectedNodeAvailableParams[0]?.value.double_value) as number}
-        onChange={(e) => {
-          console.log("")
-          context.setParameter(config.selectedParameter, e.target.value);
-        }}
-        style={{ padding: "1rem" }}
-      />
+      <div>
+        <input
+          type="number"
+          value={numVal}
+          onChange={(e) => {
+            const value = e.target.value;
+            console.log("e.target.value", value)
+            setConfig((prevConfig) => ({ ...prevConfig, currentEditingValue: value,  }));
+            context.callService?.(
+              config.selectedNode + "/set_parameters",
+              { parameters: [ { name: config.selectedParameterName, value: { integer_value: Number(value), double_value: Number(value) }} as SetSrvParam ] as SetSrvParam[]}
+            )
+          }}
+          style={{ padding: "1rem" }}
+        />
+      </div>
     );
   }
   if (config.inputType === "slider") {
+    const numVal = Number(config.currentEditingValue || selectedNodeValue.double_value || selectedNodeValue.integer_value);
+    console.log("numVal", numVal);
     return (
+      <div>
+
       <input
         type="range"
-        value={(config.currentEditingValue || config.selectedNodeAvailableParams[0]?.value.double_value) as number}
+        value={numVal}
         onChange={(e) => {
-          console.log("inputrange", e.target.value)
-          context.setParameter(config.selectedParameter, e.target.value);
+          const value = e.target.value;
+          console.log("inputrange", value)
+          setConfig((prevConfig) => ({ ...prevConfig, currentEditingValue: value }));
+          context.callService?.(
+            config.selectedNode + "/set_parameters",
+            { parameters: [ { name: config.selectedParameterName, value: { integer_value: Number(value), double_value: Number(value) }} as SetSrvParam ] as SetSrvParam[]}
+          )
         }}
         style={{ padding: "1rem" }}
-      />
+        />
+          <div>{numVal}</div>
+        </div>
     );
   }
   if (config.inputType === "boolean") {
+    const boolVal = Boolean(config.currentEditingValue || selectedNodeValue.bool_value);
+
     return (
       <input
         type="checkbox"
-        checked={(config.currentEditingValue || config.selectedNodeAvailableParams[0]?.value.bool_value) as boolean}
+        checked={boolVal}
         onChange={(e) => {
-          console.log("", e.target.checked.toString())
-          context.setParameter(config.selectedParameter, e.target.checked.toString());
+          const value = e.target.value;
+          console.log("inputcheckbox val", value, typeof(value))
+          setConfig((prevConfig) => ({ ...prevConfig, currentEditingValue: value }));
+          context.callService?.(
+            config.selectedNode + "/set_parameters",
+            { parameters: [ { name: config.selectedParameterName, value: { bool_value: Boolean(value)}} as SetSrvParam ] as SetSrvParam[]}
+          )
         }}
         style={{ padding: "1rem" }}
       />
     );
   }
   if (config.inputType === "text") {
+    const stringVal = String(config.currentEditingValue || selectedNodeValue.bool_value);
     return (
       <input
         type="text"
-        value={(config.currentEditingValue || config.selectedNodeAvailableParams[0]?.value.string_value) as string}
+        value={stringVal}
         onChange={(e) => {
-          console.log("text", e.target.value)
-          context.setParameter(config.selectedParameter, e.target.value);
+          const value = e.target.value;
+          setConfig((prevConfig) => ({ ...prevConfig, currentEditingValue: value }));
+          context.callService?.(
+            config.selectedNode + "/set_parameters",
+            { parameters: [ { name: config.selectedParameterName, value: { string_value: value}} as SetSrvParam ] as SetSrvParam[]}
+          )
         }}
         style={{ padding: "1rem" }}
       />
