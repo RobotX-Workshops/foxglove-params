@@ -92,7 +92,7 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
                 continue; // Skip to next iteration
               }
               
-              // Handle BigInt conversion
+              // Handle BigInt conversion as big ints breal the JSON serialization
               if (typeof cleanedParam[key] === "bigint") {
                 cleanedParam[key] = Number(cleanedParam[key]) as any; // Type assertion might be needed
               }
@@ -171,9 +171,9 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
       })
       .catch((_error: Error) => { console.error(_error.toString()); });
   }
-  console.log("Updating node list");
-  updateNodeList();
 
+  updateNodeList();
+ 
 
   // We use a layout effect to setup render handling for our panel. We also setup some topic subscriptions.
   useLayoutEffect(() => {
