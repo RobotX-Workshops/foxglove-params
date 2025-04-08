@@ -26,10 +26,7 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     return partialConfig as Settings;
   });
 
-  const [formState, setFormState] = useState<FormState>(() => {
-    const partialConfig = context.initialState as Partial<FormState>;;
-    return partialConfig as FormState;
-  });
+  const [formState, setFormState] = useState<FormState>(() => ({currentEditingValue: null }));
 
   const settingsActionHandler = useCallback(
     (action: SettingsTreeAction) => {
