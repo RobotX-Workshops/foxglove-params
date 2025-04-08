@@ -1,5 +1,5 @@
 import { SettingsTreeNodes, SettingsTreeFields, SettingsTreeAction } from "@foxglove/extension";
-import { ParameterNameValue } from "parameter_types";
+import { ParameterDetails } from "parameter_types";
 
 import { produce } from "immer";
 import * as _ from "lodash-es";
@@ -9,7 +9,7 @@ export type Config = {
   selectedNode: string;
   availableNodeNames: Array<string>;
   selectedParameterName: string;
-  selectedNodeAvailableParams: Array<ParameterNameValue>;
+  selectedNodeAvailableParams: Array<ParameterDetails>;
   inputType: "number" | "slider" | "boolean" | "select" | "text";
 };
 
