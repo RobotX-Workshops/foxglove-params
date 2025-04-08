@@ -33,6 +33,7 @@ export const idsToParamType = Object.fromEntries(
 );
 
 export function mapParamValue(param: ParameterValueDetails, val: string): ParameterValueDetails {
+    param = {...param}; // Create a shallow copy of the parameter object
     switch (idsToParamType[param.type]) {
         case "boolean": // 1
             param.bool_value = stringToBoolean(val);

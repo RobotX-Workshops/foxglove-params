@@ -1,20 +1,23 @@
 import { PanelExtensionContext, SettingsTreeAction } from "@foxglove/extension";
 import { ReactElement, useEffect, useLayoutEffect, useState, useCallback } from "react";
-import { Settings, buildSettingsTree, settingsActionReducer } from "./panelSettings";
+import { NumericSettings, Settings, buildSettingsTree, settingsActionReducer } from "./panelSettings";
 import { createRoot } from "react-dom/client";
 import { ParameterDetails, ParameterValueDetails } from "parameter_types";
-import { mergeParams as mergeParamsValue } from "./utils/factories";
 import { mapParamValue } from "./utils/mappers";
 
 type FormState = {
   currentEditingValue: string | number | boolean | null;
+}
+type PanelState = {
+  settings: Partial<Settings> | undefined;
 }
 
 function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactElement {
 
   const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
   const [settings, setSettings] = useState<Settings>(() => {
-    const partialConfig = context.initialState as Partial<Settings>;
+    const initialState = context.initialState as PanelState;
+    const partialConfig = initialState.settings ?? {} as Partial<Settings>;
     partialConfig.selectedNode = partialConfig.selectedNode ?? "";
     partialConfig.availableNodeNames = partialConfig.availableNodeNames ?? [];
     partialConfig.selectedParameterName = partialConfig.selectedParameterName ?? "";
@@ -60,36 +63,36 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
   useEffect(() => {
     // Reset editing value when the selected node changes
     console.log("Selected node changed, resetting editing value");
-    setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: null }));
     
     /**
      * Retrieves a list of all parameters for the current node and their values
-     */
-    context.callService?.(settings.selectedNode + "/list_parameters", {})
-      .then((_value: unknown) => {
-        const paramNameList = (_value as any).result.names as string[];
-
-        // Return the next promise to enable proper chaining
-        return { paramNameList, promise: context.callService?.(settings.selectedNode + "/get_parameters", { names: paramNameList }) };
-      })
-      .then((data) => {
-        if (!data || !data.promise) return;
-
-        const { paramNameList, promise } = data;
-
-        return promise.then((_valueResult: unknown) => {
-          const paramValList = (_valueResult as any).values as ParameterValueDetails[];
-
-          // Create combined parameter objects with names and values
-          const tempList: Array<ParameterDetails> = paramNameList.map((name, i) => ({
-            name: name,
-            value: paramValList[i]!
-          }));
-
-          // Only update state if we have parameters
-          if (tempList.length > 0) {
-            setSettings({ ...settings, selectedNodeAvailableParams: tempList });
-          }
+    */
+   context.callService?.(settings.selectedNode + "/list_parameters", {})
+   .then((_value: unknown) => {
+     const paramNameList = (_value as any).result.names as string[];
+     
+     // Return the next promise to enable proper chaining
+     return { paramNameList, promise: context.callService?.(settings.selectedNode + "/get_parameters", { names: paramNameList }) };
+    })
+    .then((data) => {
+      if (!data || !data.promise) return;
+      
+      const { paramNameList, promise } = data;
+      
+      return promise.then((_valueResult: unknown) => {
+        const paramValList = (_valueResult as any).values as ParameterValueDetails[];
+        
+        // Create combined parameter objects with names and values
+        const tempList: Array<ParameterDetails> = paramNameList.map((name, i) => ({
+          name: name,
+          value: paramValList[i]!
+        }));
+        
+        // Only update state if we have parameters
+        if (tempList.length > 0) {
+          setSettings({ ...settings, selectedNodeAvailableParams: tempList });
+        }
+        setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: null }));
         });
       })
       .catch((error) => {
@@ -194,12 +197,17 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
   }
 
   if (settings.inputType === "number") {
+    const numberSettings = settings as NumericSettings;
+
     const numVal = Number(formState.currentEditingValue || selectedNodeParamsValue.double_value || selectedNodeParamsValue.integer_value);
     console.log("numVal", numVal);
     return (
       <div>
         <input
           type="number"
+          min={numberSettings.min}
+          max={numberSettings.max}
+          step={numberSettings.step}
           value={numVal}
           onChange={(e) => {
             const value = e.target.value;
@@ -223,11 +231,15 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
   if (settings.inputType === "slider") {
     const numVal = Number(formState.currentEditingValue || selectedNodeParamsValue.double_value || selectedNodeParamsValue.integer_value);
     console.log("numVal", numVal);
+    const sliderSettings = settings as NumericSettings;
     return (
       <div>
 
         <input
           type="range"
+          min={sliderSettings.min}
+          max={sliderSettings.max}
+          step={sliderSettings.step}
           value={numVal}
           onChange={(e) => {
             const value = e.target.value;

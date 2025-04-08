@@ -14,6 +14,20 @@ export type Settings = {
   inputType: "number" | "slider" | "boolean" | "select" | "text";
 };
 
+export type NumericSettings = {
+  min: number;
+  max: number;
+  step: number;
+} & Settings;
+export type SliderSettings = {
+  min: number;
+  max: number;
+  step: number;
+} & Settings;
+
+export type PanelSettings = Settings | NumericSettings | SliderSettings;
+
+
 export function settingsActionReducer(prevConfig: Settings, action: SettingsTreeAction): Settings {
   return produce(prevConfig, (draft) => {
     if (action.action === "update") {
@@ -23,7 +37,10 @@ export function settingsActionReducer(prevConfig: Settings, action: SettingsTree
   });
 }
 
-export function buildSettingsTree(config: Settings, ): SettingsTreeNodes {
+export function buildSettingsTree(config: Settings): SettingsTreeNodes {
+
+
+  // Build the settings tree based on the config
   const dataSourceFields: SettingsTreeFields = {
     selectedNode: {
       label: "Node",
@@ -74,6 +91,41 @@ export function buildSettingsTree(config: Settings, ): SettingsTreeNodes {
     },
   };
 
+  if (config.inputType === "slider") {
+    dataSourceFields["min"] = {
+      label: "Min",
+      input: "number",
+      value: 0,
+    };
+    dataSourceFields["max"] = {
+      label: "Max",
+      input: "number",
+      value: 100,
+    };
+    dataSourceFields["step"] = {
+      label: "Step",
+      input: "number",
+      value: 1,
+    };
+  }
+
+  if (config.inputType === "number") {
+    dataSourceFields["min"] = {
+      label: "Min",
+      input: "number",
+      value: 0,
+    };
+    dataSourceFields["max"] = {
+      label: "Max",
+      input: "number",
+      value: 100,
+    };
+    dataSourceFields["step"] = {
+      label: "Step",
+      input: "number",
+      value: 1,
+    }
+  }
   const settings: SettingsTreeNodes = {
     dataSource: {
       label: "Parameter",
@@ -81,6 +133,5 @@ export function buildSettingsTree(config: Settings, ): SettingsTreeNodes {
       fields: dataSourceFields,
     },
   };
-
   return settings;
 }
