@@ -31,7 +31,7 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
   const settingsActionHandler = useCallback(
     (action: SettingsTreeAction) => {
       console.log("Settings action handler", action);
-      // setConfig((prevConfig) => settingsActionReducer(prevConfig, action));
+      
       setSettings((prevConfig) => {
         const newConfig = settingsActionReducer(prevConfig, action);
         console.log("New config", newConfig);
@@ -77,16 +77,41 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
       const { paramNameList, promise } = data;
       
       return promise.then((_valueResult: unknown) => {
-        const paramValList = (_valueResult as any).values as ParameterValueDetails[];
+        const paramValList = (_valueResult as any).values as ParameterValueDetails[]
+        
+        // Create a new array with transformed values instead of mutating the original
+        const cleanedParamValList = paramValList.map((paramVal, index) => {
+          const cleanedParam = { ...paramVal }; // Create a shallow copy
+          
+          // Iterate over object keys
+          for (const key in cleanedParam) {
+            if (Object.prototype.hasOwnProperty.call(cleanedParam, key)) {
+              // Check for undefined or null values
+              if (cleanedParam[key] === undefined || cleanedParam[key] === null) {
+                console.log(`Parameter ${key} is undefined or null at index ${index}`);
+                continue; // Skip to next iteration
+              }
+              
+              // Handle BigInt conversion
+              if (typeof cleanedParam[key] === "bigint") {
+                cleanedParam[key] = Number(cleanedParam[key]) as any; // Type assertion might be needed
+              }
+            }
+          }
+          
+          return cleanedParam;
+        });
         
         // Create combined parameter objects with names and values
         const tempList: Array<ParameterDetails> = paramNameList.map((name, i) => ({
           name: name,
-          value: paramValList[i]!
+          value: cleanedParamValList[i]!
         }));
         
         // Only update state if we have parameters
         if (tempList.length > 0) {
+
+          // TODO: Temp remove this
           setSettings({ ...settings, selectedNodeAvailableParams: tempList });
         }
         setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: null }));
@@ -139,7 +164,8 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
 
         if (nodesChanged) {
           console.log("Node names changed, updating config");
-          setSettings({ ...settings, availableNodeNames: sortedNewNodes });
+          //      // TODO: Temp remove this
+          // setSettings({ ...settings, availableNodeNames: sortedNewNodes });
         } else {
           console.log("No change in node names");
         }
@@ -214,11 +240,11 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
             const parametersPayload = { parameters: [{ name: settings.selectedParameterName, value: mapParamValue(selectedNodeParamsValue, value) }] as ParameterDetails[] };
             console.log("parameters_payload", parametersPayload)
 
-            context.callService?.(
-              service_url,
-              parametersPayload
-            )
-            setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: value, }));
+            // context.callService?.(
+            //   service_url,
+            //   parametersPayload
+            // )
+            // setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: value, }));
           }}
           style={{ padding: "1rem" }}
         />

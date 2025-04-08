@@ -7,6 +7,7 @@ declare module "parameter_types" {
     }
 
     export type ParameterValueDetails = {
+        [key: string]: any;
         type: number;
         bool_value: boolean;
         integer_value: number;
