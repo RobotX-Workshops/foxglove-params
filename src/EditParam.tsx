@@ -111,7 +111,6 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
         // Only update state if we have parameters
         if (tempList.length > 0) {
 
-          // TODO: Temp remove this
           setSettings({ ...settings, selectedNodeAvailableParams: tempList });
         }
         setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: null }));
@@ -240,11 +239,11 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
             const parametersPayload = { parameters: [{ name: settings.selectedParameterName, value: mapParamValue(selectedNodeParamsValue, value) }] as ParameterDetails[] };
             console.log("parameters_payload", parametersPayload)
 
-            // context.callService?.(
-            //   service_url,
-            //   parametersPayload
-            // )
-            // setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: value, }));
+            context.callService?.(
+              service_url,
+              parametersPayload
+            )
+            setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: value, }));
           }}
           style={{ padding: "1rem" }}
         />
