@@ -26,10 +26,7 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     return partialConfig as Settings;
   });
 
-  const [formState, setFormState] = useState<FormState>(() => {
-    const partialConfig = context.initialState as Partial<FormState>;;
-    return partialConfig as FormState;
-  });
+  const [formState, setFormState] = useState<FormState>(() => ({ currentEditingValue: null }));
 
   const settingsActionHandler = useCallback(
     (action: SettingsTreeAction) => {
@@ -67,21 +64,25 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     /**
      * Retrieves a list of all parameters for the current node and their values
     */
+   console.log("Retrieving parameters for node", settings.selectedNode);
    context.callService?.(settings.selectedNode + "/list_parameters", {})
    .then((_value: unknown) => {
      const paramNameList = (_value as any).result.names as string[];
-     
+     console.log("Received parameter names", paramNameList);
+     const selectedNodeParamsRoute = settings.selectedNode + "/get_parameters";
+     console.log("Selected node params route", selectedNodeParamsRoute);
      // Return the next promise to enable proper chaining
-     return { paramNameList, promise: context.callService?.(settings.selectedNode + "/get_parameters", { names: paramNameList }) };
+     return { paramNameList, promise: context.callService?.(selectedNodeParamsRoute, { names: paramNameList }) };
     })
     .then((data) => {
+      console.log("Received parameter values1", data);
       if (!data || !data.promise) return;
-      
+      console.log("Received parameter values2", data);
       const { paramNameList, promise } = data;
       
       return promise.then((_valueResult: unknown) => {
         const paramValList = (_valueResult as any).values as ParameterValueDetails[];
-        
+        console.log("Received parameter values", paramValList);
         // Create combined parameter objects with names and values
         const tempList: Array<ParameterDetails> = paramNameList.map((name, i) => ({
           name: name,
@@ -149,8 +150,10 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
       })
       .catch((_error: Error) => { console.error(_error.toString()); });
   }
-  console.log("Updating node list");
-  updateNodeList();
+  useEffect(() => {
+    console.log("Updating node list on first render");
+    updateNodeList();
+  }, []); // Empty dependency array means it runs once on mount
 
 
   // We use a layout effect to setup render handling for our panel. We also setup some topic subscriptions.
@@ -283,7 +286,7 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     );
   }
   if (settings.inputType === "text") {
-    const stringVal = String(formState.currentEditingValue || selectedNodeParamsValue.bool_value);
+    const stringVal = String(formState.currentEditingValue || selectedNodeParamsValue.string_value );
     return (
       <input
         type="text"
