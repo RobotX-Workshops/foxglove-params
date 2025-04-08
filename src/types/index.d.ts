@@ -1,4 +1,5 @@
 declare module "parameter_types" {
+    export let paramTypeList: string[] = ["boolean", "integer", "double", "string", "byte_array", "boolean_array", "integer_array", "double_array", "string_array"];
 
     export type ParameterDetails = {
         name: string;

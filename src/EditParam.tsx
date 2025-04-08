@@ -1,61 +1,76 @@
 import { PanelExtensionContext, SettingsTreeAction } from "@foxglove/extension";
 import { ReactElement, useEffect, useLayoutEffect, useState, useCallback } from "react";
-import { Config, buildSettingsTree, settingsActionReducer } from "./panelSettings";
+import { Settings, buildSettingsTree, settingsActionReducer } from "./panelSettings";
 import { createRoot } from "react-dom/client";
 import { ParameterDetails, ParameterValueDetails } from "parameter_types";
 import { mergeParams as mergeParamsValue } from "./utils/factories";
+import { mapParamValue } from "./utils/mappers";
 
+type FormState = {
+  currentEditingValue: string | number | boolean | null;
+}
 
 function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactElement {
 
   const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
-  const [config, setConfig] = useState<Config>(() => {
-    const partialConfig = context.initialState as Partial<Config>;
+  const [settings, setSettings] = useState<Settings>(() => {
+    const partialConfig = context.initialState as Partial<Settings>;
     partialConfig.selectedNode = partialConfig.selectedNode ?? "";
     partialConfig.availableNodeNames = partialConfig.availableNodeNames ?? [];
     partialConfig.selectedParameterName = partialConfig.selectedParameterName ?? "";
     partialConfig.selectedNodeAvailableParams = partialConfig.selectedNodeAvailableParams ?? [];
     partialConfig.inputType = partialConfig.inputType ?? "number";
-    return partialConfig as Config;
+    return partialConfig as Settings;
+  });
+
+  const [formState, setFormState] = useState<FormState>(() => {
+    const partialConfig = context.initialState as Partial<FormState>;;
+    return partialConfig as FormState;
   });
 
   const settingsActionHandler = useCallback(
     (action: SettingsTreeAction) => {
       console.log("Settings action handler", action);
       // setConfig((prevConfig) => settingsActionReducer(prevConfig, action));
-      setConfig((prevConfig) => {
+      setSettings((prevConfig) => {
         const newConfig = settingsActionReducer(prevConfig, action);
         console.log("New config", newConfig);
         return newConfig;
       }
       );
     },
-    [setConfig],
+    [setSettings],
   );
+
   // Register the settings tree
   useEffect(() => {
     console.log("Registering settings tree");
     context.updatePanelSettingsEditor({
       actionHandler: settingsActionHandler,
-      nodes: buildSettingsTree(config),
+      nodes: buildSettingsTree(settings),
     });
-  }, [config, context, settingsActionHandler]);
+    console.log("Savings settings tree", settings);
+    context.saveState({
+      settings: settings,
+    });
+    console.log("Settings saved", settings);
+  }, [settings, context, settingsActionHandler]);
 
 
   useEffect(() => {
     // Reset editing value when the selected node changes
     console.log("Selected node changed, resetting editing value");
-    setConfig((prevConfig) => ({ ...prevConfig, currentEditingValue: null }));
-
+    setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: null }));
+    
     /**
      * Retrieves a list of all parameters for the current node and their values
      */
-    context.callService?.(config.selectedNode + "/list_parameters", {})
+    context.callService?.(settings.selectedNode + "/list_parameters", {})
       .then((_value: unknown) => {
         const paramNameList = (_value as any).result.names as string[];
 
         // Return the next promise to enable proper chaining
-        return { paramNameList, promise: context.callService?.(config.selectedNode + "/get_parameters", { names: paramNameList }) };
+        return { paramNameList, promise: context.callService?.(settings.selectedNode + "/get_parameters", { names: paramNameList }) };
       })
       .then((data) => {
         if (!data || !data.promise) return;
@@ -73,14 +88,14 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
 
           // Only update state if we have parameters
           if (tempList.length > 0) {
-            setConfig({ ...config, selectedNodeAvailableParams: tempList });
+            setSettings({ ...settings, selectedNodeAvailableParams: tempList });
           }
         });
       })
       .catch((error) => {
         console.error(`error, failed to retrieve parameters: ${error.message}`);
       });
-  }, [config.selectedNode, context]);
+  }, [settings.selectedNode, context]);
 
   //TODO: Maybe not a good idea to reset the editing value when the selected parameter changes
   // useEffect(() => {
@@ -107,7 +122,7 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
 
         // Sort both arrays for comparison
         const sortedNewNodes = [...nodeNames].sort();
-        const sortedCurrentNodes = [...config.availableNodeNames].sort();
+        const sortedCurrentNodes = [...settings.availableNodeNames].sort();
 
         // Check if arrays have different lengths or different content
         let nodesChanged = sortedNewNodes.length !== sortedCurrentNodes.length;
@@ -124,13 +139,14 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
 
         if (nodesChanged) {
           console.log("Node names changed, updating config");
-          setConfig({ ...config, availableNodeNames: sortedNewNodes });
+          setSettings({ ...settings, availableNodeNames: sortedNewNodes });
         } else {
           console.log("No change in node names");
         }
       })
       .catch((_error: Error) => { console.error(_error.toString()); });
   }
+  console.log("Updating node list");
   updateNodeList();
 
 
@@ -161,22 +177,24 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     renderDone?.();
   }, [renderDone]);
 
-  
-  if (config === undefined || config === null || config.selectedNodeAvailableParams === undefined || config.selectedParameterName === undefined)
-    return <div>Loading...</div>;
-  
-  console.log("Current editing value", config.currentEditingValue);
 
-  const selectedNodeParamsValue = config.selectedNodeAvailableParams.filter(x => x.name == config.selectedParameterName)[0]?.value;
+  if (settings === undefined || settings === null || settings.selectedNodeAvailableParams === undefined || settings.selectedParameterName === undefined)
+    return <div>Loading...</div>;
+
+  console.log("Current editing value", formState.currentEditingValue);
+
+  const selectedNodeParamsValue = settings.selectedNodeAvailableParams.filter(x => x.name == settings.selectedParameterName)[0]?.value;
   console.log("Selected node value", selectedNodeParamsValue);
+
+  
 
   // Check if the selected node has a valu
   if (!selectedNodeParamsValue) {
     return <div>No value found. Setup correctly in panel settings</div>;
   }
-  
-  if (config.inputType === "number") {
-    const numVal = Number(config.currentEditingValue || selectedNodeParamsValue.double_value || selectedNodeParamsValue.integer_value);
+
+  if (settings.inputType === "number") {
+    const numVal = Number(formState.currentEditingValue || selectedNodeParamsValue.double_value || selectedNodeParamsValue.integer_value);
     console.log("numVal", numVal);
     return (
       <div>
@@ -186,53 +204,52 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
           onChange={(e) => {
             const value = e.target.value;
             console.log("e.target.value", value)
-            const service_url = config.selectedNode + "/set_parameters";
+            const service_url = settings.selectedNode + "/set_parameters";
             console.log("service_url", service_url)
-
-            const parametersPayload = { parameters: [ { name: config.selectedParameterName, value: mergeParamsValue(selectedNodeParamsValue, { integer_value: Number(value), double_value: Number(value) }) } ] as ParameterDetails[]};
+            const parametersPayload = { parameters: [{ name: settings.selectedParameterName, value: mapParamValue(selectedNodeParamsValue, value) }] as ParameterDetails[] };
             console.log("parameters_payload", parametersPayload)
 
             context.callService?.(
               service_url,
               parametersPayload
             )
-            setConfig((prevConfig) => ({ ...prevConfig, currentEditingValue: value,  }));
+            setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: value, }));
           }}
           style={{ padding: "1rem" }}
         />
       </div>
     );
   }
-  if (config.inputType === "slider") {
-    const numVal = Number(config.currentEditingValue || selectedNodeParamsValue.double_value || selectedNodeParamsValue.integer_value);
+  if (settings.inputType === "slider") {
+    const numVal = Number(formState.currentEditingValue || selectedNodeParamsValue.double_value || selectedNodeParamsValue.integer_value);
     console.log("numVal", numVal);
     return (
       <div>
 
-      <input
-        type="range"
-        value={numVal}
-        onChange={(e) => {
-          const value = e.target.value;
-          console.log("inputrange", value)
-          const service_url = config.selectedNode + "/set_parameters";
-          console.log("service_url", service_url)
-          const parametersPayload = { parameters: [{ name: config.selectedParameterName, value: { integer_value: Number(value), double_value: Number(value) } } as ParameterDetails] as ParameterDetails[] };
-          console.log("parameters_payload", parametersPayload)
-          context.callService?.(
-            service_url,
-            parametersPayload
-          )
-          setConfig((prevConfig) => ({ ...prevConfig, currentEditingValue: value }));
-        }}
-        style={{ padding: "1rem" }}
+        <input
+          type="range"
+          value={numVal}
+          onChange={(e) => {
+            const value = e.target.value;
+            console.log("inputrange", value)
+            const service_url = settings.selectedNode + "/set_parameters";
+            console.log("service_url", service_url)
+            const parametersPayload = { parameters: [{ name: settings.selectedParameterName, value: mapParamValue(selectedNodeParamsValue, value) }] as ParameterDetails[] };
+            console.log("parameters_payload", parametersPayload)
+            context.callService?.(
+              service_url,
+              parametersPayload
+            )
+            setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: value }));
+          }}
+          style={{ padding: "1rem" }}
         />
-          <div>{numVal}</div>
-        </div>
+        <div>{numVal}</div>
+      </div>
     );
   }
-  if (config.inputType === "boolean") {
-    const boolVal = Boolean(config.currentEditingValue || selectedNodeParamsValue.bool_value);
+  if (settings.inputType === "boolean") {
+    const boolVal = Boolean(formState.currentEditingValue || selectedNodeParamsValue.bool_value);
 
     return (
       <input
@@ -240,30 +257,33 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
         checked={boolVal}
         onChange={(e) => {
           const value = e.target.value;
-          console.log("inputcheckbox val", value, typeof(value))
+          console.log("inputcheckbox val", value, typeof (value))
+          const parametersPayload = { parameters: [{ name: settings.selectedParameterName, value: mapParamValue(selectedNodeParamsValue, value) }] as ParameterDetails[] };
+
           context.callService?.(
-            config.selectedNode + "/set_parameters",
-            { parameters: [ { name: config.selectedParameterName, value: { bool_value: Boolean(value)}} as ParameterDetails ] as ParameterDetails[]}
+            settings.selectedNode + "/set_parameters",
+            parametersPayload
           )
-          setConfig((prevConfig) => ({ ...prevConfig, currentEditingValue: value }));
+          setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: value }));
         }}
         style={{ padding: "1rem" }}
       />
     );
   }
-  if (config.inputType === "text") {
-    const stringVal = String(config.currentEditingValue || selectedNodeParamsValue.bool_value);
+  if (settings.inputType === "text") {
+    const stringVal = String(formState.currentEditingValue || selectedNodeParamsValue.bool_value);
     return (
       <input
         type="text"
         value={stringVal}
         onChange={(e) => {
           const value = e.target.value;
+          const parametersPayload = { parameters: [{ name: settings.selectedParameterName, value: mapParamValue(selectedNodeParamsValue, value) }] as ParameterDetails[] };
           context.callService?.(
-            config.selectedNode + "/set_parameters",
-            { parameters: [ { name: config.selectedParameterName, value: { string_value: value}} as ParameterDetails ] as ParameterDetails[]}
+            settings.selectedNode + "/set_parameters",
+            parametersPayload
           )
-          setConfig((prevConfig) => ({ ...prevConfig, currentEditingValue: value }));
+          setFormState((prevConfig) => ({ ...prevConfig, currentEditingValue: value }));
         }}
         style={{ padding: "1rem" }}
       />

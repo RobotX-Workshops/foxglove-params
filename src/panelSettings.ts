@@ -4,8 +4,9 @@ import { ParameterDetails } from "parameter_types";
 import { produce } from "immer";
 import * as _ from "lodash-es";
 
-export type Config = {
-  currentEditingValue: string | number | boolean | null;
+
+
+export type Settings = {
   selectedNode: string;
   availableNodeNames: Array<string>;
   selectedParameterName: string;
@@ -13,7 +14,7 @@ export type Config = {
   inputType: "number" | "slider" | "boolean" | "select" | "text";
 };
 
-export function settingsActionReducer(prevConfig: Config, action: SettingsTreeAction): Config {
+export function settingsActionReducer(prevConfig: Settings, action: SettingsTreeAction): Settings {
   return produce(prevConfig, (draft) => {
     if (action.action === "update") {
       const { path, value } = action.payload;
@@ -22,7 +23,7 @@ export function settingsActionReducer(prevConfig: Config, action: SettingsTreeAc
   });
 }
 
-export function buildSettingsTree(config: Config, ): SettingsTreeNodes {
+export function buildSettingsTree(config: Settings, ): SettingsTreeNodes {
   const dataSourceFields: SettingsTreeFields = {
     selectedNode: {
       label: "Node",
