@@ -244,7 +244,9 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     const numVal = Number(formState.currentEditingValue || selectedNodeParamsValue.double_value || selectedNodeParamsValue.integer_value);
     console.log("numVal", numVal);
     return (
-      <div>
+      <div
+      style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center" } }
+      >
         <input
           type="number"
           min={numberSettings.min}
