@@ -149,13 +149,6 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
       });
   }, [settings.selectedNode, context]);
 
-  //TODO: Maybe not a good idea to reset the editing value when the selected parameter changes
-  // useEffect(() => {
-  //   // Reset editing value when the selected param changes
-  //   console.log("Selected node changed, resetting editing value");
-  //   setConfig((prevConfig) => ({ ...prevConfig, currentEditingValue: null }));
-
-  // }, [config.selectedParameter, context]);
 
   /**
   * Updates the list of nodes when a new node appears
@@ -191,7 +184,6 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
 
         if (nodesChanged) {
           console.log("Node names changed, updating config");
-          //      // TODO: Temp remove this
           setSettings({ ...settings, availableNodeNames: sortedNewNodes });
         } else {
           console.log("No change in node names");
@@ -283,7 +275,9 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
     console.log("numVal", numVal);
     const sliderSettings = settings as NumericSettings;
     return (
-      <div>
+      <div
+      style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center" } }
+      >
 
         <input
           type="range"
