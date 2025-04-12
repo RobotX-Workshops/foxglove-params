@@ -58,8 +58,12 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
 
 
   useEffect(() => {
+    if (!settings.selectedNode) {
+      console.log("No node selected");
+      return;
+    }
     // Reset editing value when the selected node changes
-    console.log("Selected node changed, resetting editing value");
+    console.log(`Selected node changed to '${settings.selectedNode}', resetting editing value`);
     
     /**
      * Retrieves a list of all parameters for the current node and their values
@@ -164,7 +168,7 @@ function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactE
         if (nodesChanged) {
           console.log("Node names changed, updating config");
           //      // TODO: Temp remove this
-          // setSettings({ ...settings, availableNodeNames: sortedNewNodes });
+          setSettings({ ...settings, availableNodeNames: sortedNewNodes });
         } else {
           console.log("No change in node names");
         }
