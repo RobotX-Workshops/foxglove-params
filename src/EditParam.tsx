@@ -1,6 +1,6 @@
 import { PanelExtensionContext, SettingsTreeAction } from "@foxglove/extension";
 import { ReactElement, useEffect, useLayoutEffect, useState, useCallback } from "react";
-import { NumericSettings, Settings, buildSettingsTree, settingsActionReducer } from "./panelSettings";
+import { NumericSettings, PanelSettings, Settings, buildSettingsTree, settingsActionReducer } from "./panelSettings";
 import { createRoot } from "react-dom/client";
 import { ParameterDetails, ParameterValueDetails } from "parameter_types";
 import { mapParamValue } from "./utils/mappers";
@@ -15,15 +15,39 @@ type PanelState = {
 function EditParamPanel({ context }: { context: PanelExtensionContext }): ReactElement {
 
   const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
-  const [settings, setSettings] = useState<Settings>(() => {
+  const [settings, setSettings] = useState<PanelSettings>(() => {
     const initialState = context.initialState as PanelState;
-    const partialConfig = initialState.settings ?? {} as Partial<Settings>;
-    partialConfig.selectedNode = partialConfig.selectedNode ?? "";
-    partialConfig.availableNodeNames = partialConfig.availableNodeNames ?? [];
-    partialConfig.selectedParameterName = partialConfig.selectedParameterName ?? "";
-    partialConfig.selectedNodeAvailableParams = partialConfig.selectedNodeAvailableParams ?? [];
-    partialConfig.inputType = partialConfig.inputType ?? "number";
-    return partialConfig as Settings;
+    const partialSettings = initialState.settings ?? {};
+    if (partialSettings === undefined) {
+      console.log("No initial state found");
+      return {
+        selectedNode: '',
+        availableNodeNames: [],
+        selectedParameterName: '',
+        selectedNodeAvailableParams: [],
+        inputType: 'number',
+      };
+    }
+    if (partialSettings.inputType == 'number' || partialSettings.inputType == 'slider') {
+      const numberSettings = partialSettings as NumericSettings;
+      return {
+        selectedNode: partialSettings.selectedNode ?? '',
+        availableNodeNames: partialSettings.availableNodeNames ?? [],
+        selectedParameterName: partialSettings.selectedParameterName ?? '',
+        selectedNodeAvailableParams: partialSettings.selectedNodeAvailableParams ?? [],
+        inputType: partialSettings.inputType,
+        min: numberSettings.min ?? -100,
+        max: numberSettings.max ?? 100,
+        step: numberSettings.step ?? 0.1,
+      };
+    }
+    return {
+      selectedNode: partialSettings.selectedNode ?? '',
+      availableNodeNames: partialSettings.availableNodeNames ?? [],
+      selectedParameterName: partialSettings.selectedParameterName ?? '',
+      selectedNodeAvailableParams: partialSettings.selectedNodeAvailableParams ?? [],
+      inputType: partialSettings.inputType ?? 'number',
+    };
   });
 
   const [formState, setFormState] = useState<FormState>(() => ({currentEditingValue: null }));

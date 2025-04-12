@@ -19,13 +19,9 @@ export type NumericSettings = {
   max: number;
   step: number;
 } & Settings;
-export type SliderSettings = {
-  min: number;
-  max: number;
-  step: number;
-} & Settings;
 
-export type PanelSettings = Settings | NumericSettings | SliderSettings;
+
+export type PanelSettings = Settings | NumericSettings;
 
 
 export function settingsActionReducer(prevConfig: Settings, action: SettingsTreeAction): Settings {
@@ -37,7 +33,7 @@ export function settingsActionReducer(prevConfig: Settings, action: SettingsTree
   });
 }
 
-export function buildSettingsTree(config: Settings): SettingsTreeNodes {
+export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
 
 
   // Build the settings tree based on the config
@@ -92,38 +88,40 @@ export function buildSettingsTree(config: Settings): SettingsTreeNodes {
   };
 
   if (config.inputType === "slider") {
+    var numSettings = config as NumericSettings;
     dataSourceFields["min"] = {
       label: "Min",
       input: "number",
-      value: 0,
+      value: numSettings.min,
     };
     dataSourceFields["max"] = {
       label: "Max",
       input: "number",
-      value: 100,
+      value: numSettings.max,
     };
     dataSourceFields["step"] = {
       label: "Step",
       input: "number",
-      value: 1,
-    };
+      value: numSettings.step,
+    }
   }
 
   if (config.inputType === "number") {
+    var numSettings = config as NumericSettings;
     dataSourceFields["min"] = {
       label: "Min",
       input: "number",
-      value: 0,
+      value: numSettings.min,
     };
     dataSourceFields["max"] = {
       label: "Max",
       input: "number",
-      value: 100,
+      value: numSettings.max,
     };
     dataSourceFields["step"] = {
       label: "Step",
       input: "number",
-      value: 1,
+      value: numSettings.step,
     }
   }
   const settings: SettingsTreeNodes = {
