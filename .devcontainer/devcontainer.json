@@ -13,7 +13,7 @@
 				"codezombiech.gitignore"
 			]
 		}
-	}
+	},
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
@@ -23,6 +23,7 @@
 
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "yarn install",
+	"postStartCommand": "yarn install",
 
 	// Configure tool-specific properties.
 	// "customizations": {},
