@@ -1,0 +1,9 @@
+node_modules/
+dist/
+test/
+releases/
+.eslintrc.yaml
+.prettierrc.yaml
+package-lock.json
+*.foxe
+.DS_Store
