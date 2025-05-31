@@ -20,7 +20,7 @@ export const isBooleanArr = (strArr: string[]) => {
 };
 
 /**
- * Returns the string value of a paramter's value to be outputted on the screen
+ * Returns the string value of a parameter's value to be outputted on the screen
  * @param   param The parameter value that is converted to a string
  * @returns String representation of param
  */

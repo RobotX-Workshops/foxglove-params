@@ -276,7 +276,7 @@ function EditParamPanel({
   )[0]?.value;
   console.log("Selected node value", selectedNodeParamsValue);
 
-  // Check if the selected node has a valu
+  // Check if the selected node has a value
   if (!selectedNodeParamsValue) {
     return <div>No value found. Setup correctly in panel settings</div>;
   }
@@ -384,9 +384,7 @@ function EditParamPanel({
     );
   }
   if (settings.inputType === "boolean") {
-    const boolVal = Boolean(
-      formState.currentEditingValue || selectedNodeParamsValue.bool_value,
-    );
+    const boolVal = formState.currentEditingValue == null ? selectedNodeParamsValue.bool_value : Boolean(formState.currentEditingValue);
 
     return (
       <input
@@ -394,24 +392,30 @@ function EditParamPanel({
         checked={boolVal}
         onChange={(e) => {
           const value = e.target.value;
-          console.log("inputcheckbox val", value, typeof value);
+          console.log("input checkbox val", value, typeof value);
+          const mappedVal = mapParamValue(
+            selectedNodeParamsValue,
+            e.target.checked.toString(),
+          );
+          console.log("input checkbox mapped val", mappedVal, typeof mappedVal);
           const parametersPayload = {
             parameters: [
               {
                 name: settings.selectedParameterName,
-                value: mapParamValue(selectedNodeParamsValue, value),
+                value: mappedVal,
               },
             ] as ParameterDetails[],
           };
-
+          
           context.callService?.(
             settings.selectedNode + "/set_parameters",
             parametersPayload,
           );
           setFormState((prevConfig) => ({
             ...prevConfig,
-            currentEditingValue: value,
+            currentEditingValue: mappedVal.bool_value,
           }));
+          
         }}
         style={{ padding: "1rem" }}
       />
