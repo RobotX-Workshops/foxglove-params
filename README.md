@@ -1,6 +1,11 @@
 # Foxglove Parameter Editor
 
-Extensions for conveniently adjusting foxglove params
+An extension for Foxglove for conveniently adjusting paramameters of different types.
+
+![panel](docs/images/foxglove-param-editor-panel.png)
+![setup](docs/images/foxglove-param-editor.png)
+
+## Installation
 
 This plugin relies on the `/rosapi/nodes` service to be available on the robot in order to build a list of running nodes.
 This can either be done by making sure [rosbridge_server](https://github.com/RobotWebTools/rosbridge_suite/blob/ros2/rosbridge_server/launch/rosbridge_websocket_launch.xml) is running:
