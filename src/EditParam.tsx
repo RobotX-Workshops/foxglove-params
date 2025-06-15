@@ -37,13 +37,12 @@ function extractNodeNames(data: string): string[] {
     }
 
     // Safely extract node names
-    const nodeNames = new Set(
+      const nodeNames = new Set(
       parsed.parameters
-        .map((p) => p.name.split('/')[1]) // Get the part after the first '/', may be undefined
-        .filter((namePart): namePart is string => !!namePart) // Filter out any undefined or empty results
-        .map((namePart) => `/${namePart}`), // Prepend the slash only to valid names
-    );
-
+        .map((p) => p.name.split('/')[1]) 
+        .filter((namePart): namePart is string => !!namePart) 
+    );;
+    console.log("Extracted node names:", nodeNames);
     return Array.from(nodeNames);
   } catch (e) {
     console.error("Failed to parse parameter data:", e);
@@ -67,6 +66,7 @@ function extractParametersForNode(data: string, nodeName: string): ParameterDeta
                 });
             }
         });
+        console.log(`Extracted parameters for node ${nodeName}:`, nodeParams);
         return nodeParams;
     } catch (e) {
         console.error("Failed to extract parameters for node:", e);
@@ -207,7 +207,7 @@ function EditParamPanel({
 
   // --- RENDER LOGIC WITH `context.setParameter` ---
 
-  const fullParamName = `${settings.selectedNode}/${settings.selectedParameterName}`;
+  const fullParamName = `${settings.selectedNode}.${settings.selectedParameterName}`;
 
   if (settings.inputType === "number") {
     const numberSettings = settings as NumericSettings;
