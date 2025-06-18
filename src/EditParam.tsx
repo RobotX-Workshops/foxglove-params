@@ -42,7 +42,7 @@ function extractNodeNames(data: string): string[] {
     // Safely extract node names
     const nodeNames = new Set(
       parsed.parameters
-        .map((p) => p.name.split("/")[1])
+        .map((p) => p.name.split(".")[1])
         .filter((namePart): namePart is string => !!namePart),
     );
     console.log("Extracted node names:", nodeNames);
