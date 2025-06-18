@@ -88,7 +88,7 @@ function EditParamPanel({
 
   useEffect(() => {
     // Using the direct WebSocket connection from your example
-    const websocket = new WebSocket("ws://192.168.1.100:8765", ["foxglove.websocket.v1"]);
+    const websocket = new WebSocket("ws://localhost:8765", ["foxglove.websocket.v1"]);
 
     websocket.onopen = () => {
       console.log("WebSocket connection established");
