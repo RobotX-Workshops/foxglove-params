@@ -37,11 +37,11 @@ function extractNodeNames(data: string): string[] {
     }
 
     // Safely extract node names
-      const nodeNames = new Set(
+    const nodeNames = new Set(
       parsed.parameters
-        .map((p) => p.name.split('/')[1]) 
-        .filter((namePart): namePart is string => !!namePart) 
-    );;
+        .map((p) => p.name.split("/")[1])
+        .filter((namePart): namePart is string => !!namePart),
+    );
     console.log("Extracted node names:", nodeNames);
     return Array.from(nodeNames);
   } catch (e) {
@@ -51,29 +51,33 @@ function extractNodeNames(data: string): string[] {
 }
 
 // Helper to parse parameters for a specific node (replaces extractParametersByNode)
-function extractParametersForNode(data: string, nodeName: string): ParameterDetails[] {
-    if (!data || !nodeName) return [];
-    try {
-        const parsed = JSON.parse(data);
-        if (!parsed.parameters || !Array.isArray(parsed.parameters)) return [];
+function extractParametersForNode(
+  data: string,
+  nodeName: string,
+): ParameterDetails[] {
+  if (!data || !nodeName) return [];
+  try {
+    const parsed = JSON.parse(data);
+    if (!parsed.parameters || !Array.isArray(parsed.parameters)) return [];
 
-        const nodeParams: ParameterDetails[] = [];
-        parsed.parameters.forEach((param: { name: string, value: ParameterValueDetails }) => {
-            if (param.name.startsWith(`${nodeName}/`)) {
-                nodeParams.push({
-                    name: param.name.replace(`${nodeName}/`, ''),
-                    value: param.value
-                });
-            }
-        });
-        console.log(`Extracted parameters for node ${nodeName}:`, nodeParams);
-        return nodeParams;
-    } catch (e) {
-        console.error("Failed to extract parameters for node:", e);
-        return [];
-    }
+    const nodeParams: ParameterDetails[] = [];
+    parsed.parameters.forEach(
+      (param: { name: string; value: ParameterValueDetails }) => {
+        if (param.name.startsWith(`${nodeName}/`)) {
+          nodeParams.push({
+            name: param.name.replace(`${nodeName}/`, ""),
+            value: param.value,
+          });
+        }
+      },
+    );
+    console.log(`Extracted parameters for node ${nodeName}:`, nodeParams);
+    return nodeParams;
+  } catch (e) {
+    console.error("Failed to extract parameters for node:", e);
+    return [];
+  }
 }
-
 
 function EditParamPanel({
   context,
@@ -88,7 +92,9 @@ function EditParamPanel({
 
   useEffect(() => {
     // Using the direct WebSocket connection from your example
-    const websocket = new WebSocket("ws://localhost:8765", ["foxglove.websocket.v1"]);
+    const websocket = new WebSocket("ws://localhost:8765", [
+      "foxglove.websocket.v1",
+    ]);
 
     websocket.onopen = () => {
       console.log("WebSocket connection established");
@@ -117,55 +123,91 @@ function EditParamPanel({
           op: "getParameters",
           parameterNames: [], // Request all parameters
           id: "fetch-all-parameters",
-        })
+        }),
       );
     } else {
       console.error("Cannot fetch parameters, WebSocket is not open.");
     }
   }, [ws]);
   // --- End of new WebSocket logic ---
-  
+
   const [settings, setSettings] = useState<PanelSettings>(() => {
     // State initialization is unchanged
     const initialState = context.initialState as PanelState;
     const partialSettings = initialState.settings ?? {};
     if (partialSettings === undefined) {
-      return { selectedNode: "", availableNodeNames: [], selectedParameterName: "", selectedNodeAvailableParams: [], inputType: "number" };
+      return {
+        selectedNode: "",
+        availableNodeNames: [],
+        selectedParameterName: "",
+        selectedNodeAvailableParams: [],
+        inputType: "number",
+      };
     }
-    if (partialSettings.inputType == "number" || partialSettings.inputType == "slider") {
+    if (
+      partialSettings.inputType == "number" ||
+      partialSettings.inputType == "slider"
+    ) {
       const numberSettings = partialSettings as NumericSettings;
-      return { selectedNode: partialSettings.selectedNode ?? "", availableNodeNames: partialSettings.availableNodeNames ?? [], selectedParameterName: partialSettings.selectedParameterName ?? "", selectedNodeAvailableParams: partialSettings.selectedNodeAvailableParams ?? [], inputType: partialSettings.inputType, min: numberSettings.min ?? -100, max: numberSettings.max ?? 100, step: numberSettings.step ?? 0.1 };
+      return {
+        selectedNode: partialSettings.selectedNode ?? "",
+        availableNodeNames: partialSettings.availableNodeNames ?? [],
+        selectedParameterName: partialSettings.selectedParameterName ?? "",
+        selectedNodeAvailableParams:
+          partialSettings.selectedNodeAvailableParams ?? [],
+        inputType: partialSettings.inputType,
+        min: numberSettings.min ?? -100,
+        max: numberSettings.max ?? 100,
+        step: numberSettings.step ?? 0.1,
+      };
     }
-    return { selectedNode: partialSettings.selectedNode ?? "", availableNodeNames: partialSettings.availableNodeNames ?? [], selectedParameterName: partialSettings.selectedParameterName ?? "", selectedNodeAvailableParams: partialSettings.selectedNodeAvailableParams ?? [], inputType: partialSettings.inputType ?? "number" };
+    return {
+      selectedNode: partialSettings.selectedNode ?? "",
+      availableNodeNames: partialSettings.availableNodeNames ?? [],
+      selectedParameterName: partialSettings.selectedParameterName ?? "",
+      selectedNodeAvailableParams:
+        partialSettings.selectedNodeAvailableParams ?? [],
+      inputType: partialSettings.inputType ?? "number",
+    };
   });
 
-  const [formState, setFormState] = useState<FormState>({ currentEditingValue: null });
+  const [formState, setFormState] = useState<FormState>({
+    currentEditingValue: null,
+  });
 
   const settingsActionHandler = useCallback((action: SettingsTreeAction) => {
     setSettings((prevConfig) => settingsActionReducer(prevConfig, action));
   }, []);
 
   useEffect(() => {
-    context.updatePanelSettingsEditor({ actionHandler: settingsActionHandler, nodes: buildSettingsTree(settings) });
+    context.updatePanelSettingsEditor({
+      actionHandler: settingsActionHandler,
+      nodes: buildSettingsTree(settings),
+    });
     context.saveState({ settings: settings });
   }, [settings, context, settingsActionHandler]);
-  
+
   // This effect reacts to new data from the WebSocket to update the list of available nodes
   useEffect(() => {
     const nodeNames = extractNodeNames(parameterData);
     if (nodeNames.length > 0) {
-        setSettings(prev => ({ ...prev, availableNodeNames: nodeNames }));
+      setSettings((prev) => ({ ...prev, availableNodeNames: nodeNames }));
     }
   }, [parameterData]);
 
   // This effect reacts to a node being selected or new data arriving
   useEffect(() => {
     if (!settings.selectedNode || !parameterData) return;
-    
-    const paramsForNode = extractParametersForNode(parameterData, settings.selectedNode);
-    setSettings(prev => ({...prev, selectedNodeAvailableParams: paramsForNode}));
-    setFormState({ currentEditingValue: null });
 
+    const paramsForNode = extractParametersForNode(
+      parameterData,
+      settings.selectedNode,
+    );
+    setSettings((prev) => ({
+      ...prev,
+      selectedNodeAvailableParams: paramsForNode,
+    }));
+    setFormState({ currentEditingValue: null });
   }, [settings.selectedNode, parameterData]);
 
   useLayoutEffect(() => {
@@ -177,12 +219,18 @@ function EditParamPanel({
   useEffect(() => {
     renderDone?.();
   }, [renderDone]);
-  
-  if (!settings.selectedNodeAvailableParams || !settings.selectedParameterName) {
+
+  if (
+    !settings.selectedNodeAvailableParams ||
+    !settings.selectedParameterName
+  ) {
     return (
-      <div style={{ padding: '1rem' }}>
+      <div style={{ padding: "1rem" }}>
         <h2>Parameter Editor</h2>
-        <p>Click the button to fetch parameters from the robot, then select a node and parameter in the panel settings.</p>
+        <p>
+          Click the button to fetch parameters from the robot, then select a
+          node and parameter in the panel settings.
+        </p>
         <button onClick={fetchParameters} style={{ marginTop: "1rem" }}>
           Fetch Parameters
         </button>
@@ -196,12 +244,15 @@ function EditParamPanel({
 
   if (!selectedNodeParamsValue) {
     return (
-        <div style={{ padding: '1rem' }}>
-            <p>Parameter '{settings.selectedParameterName}' not found for node '{settings.selectedNode}'. Try fetching parameters again.</p>
-            <button onClick={fetchParameters} style={{ marginTop: "1rem" }}>
-              Fetch Parameters
-            </button>
-        </div>
+      <div style={{ padding: "1rem" }}>
+        <p>
+          Parameter '{settings.selectedParameterName}' not found for node '
+          {settings.selectedNode}'. Try fetching parameters again.
+        </p>
+        <button onClick={fetchParameters} style={{ marginTop: "1rem" }}>
+          Fetch Parameters
+        </button>
+      </div>
     );
   }
 
@@ -211,9 +262,20 @@ function EditParamPanel({
 
   if (settings.inputType === "number") {
     const numberSettings = settings as NumericSettings;
-    const numVal = Number(formState.currentEditingValue ?? selectedNodeParamsValue.double_value ?? selectedNodeParamsValue.integer_value);
+    const numVal = Number(
+      formState.currentEditingValue ??
+        selectedNodeParamsValue.double_value ??
+        selectedNodeParamsValue.integer_value,
+    );
     return (
-      <div style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <input
           type="number"
           min={numberSettings.min}
@@ -232,10 +294,21 @@ function EditParamPanel({
     );
   }
   if (settings.inputType === "slider") {
-    const numVal = Number(formState.currentEditingValue ?? selectedNodeParamsValue.double_value ?? selectedNodeParamsValue.integer_value);
+    const numVal = Number(
+      formState.currentEditingValue ??
+        selectedNodeParamsValue.double_value ??
+        selectedNodeParamsValue.integer_value,
+    );
     const sliderSettings = settings as NumericSettings;
     return (
-      <div style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <input
           type="range"
           min={sliderSettings.min}
@@ -255,7 +328,10 @@ function EditParamPanel({
     );
   }
   if (settings.inputType === "boolean") {
-    const boolVal = formState.currentEditingValue == null ? selectedNodeParamsValue.bool_value : Boolean(formState.currentEditingValue);
+    const boolVal =
+      formState.currentEditingValue == null
+        ? selectedNodeParamsValue.bool_value
+        : Boolean(formState.currentEditingValue);
     return (
       <input
         type="checkbox"
@@ -271,7 +347,9 @@ function EditParamPanel({
     );
   }
   if (settings.inputType === "text") {
-    const stringVal = String(formState.currentEditingValue || selectedNodeParamsValue.string_value);
+    const stringVal = String(
+      formState.currentEditingValue || selectedNodeParamsValue.string_value,
+    );
     return (
       <input
         type="text"
