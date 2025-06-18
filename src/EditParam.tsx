@@ -15,7 +15,8 @@ import {
 } from "./panelSettings";
 import { createRoot } from "react-dom/client";
 import { ParameterDetails, ParameterValueDetails } from "parameter_types";
-import { mapParamValue } from "./utils/mappers";
+// The mapParamValue function is no longer needed as context.setParameter handles typing.
+// import { mapParamValue } from "./utils/mappers";
 
 type FormState = {
   currentEditingValue: string | number | boolean | null;
@@ -24,281 +25,195 @@ type PanelState = {
   settings: Partial<Settings> | undefined;
 };
 
+// Helper to parse the raw parameter data string (replaces extractNodeNames from example)
+function extractNodeNames(data: string): string[] {
+  if (!data) return [];
+  try {
+    // Explicitly type the expected structure from JSON.parse
+    const parsed: { parameters?: { name: string }[] } = JSON.parse(data);
+
+    if (!parsed.parameters || !Array.isArray(parsed.parameters)) {
+      return [];
+    }
+
+    // Safely extract node names
+      const nodeNames = new Set(
+      parsed.parameters
+        .map((p) => p.name.split('/')[1]) 
+        .filter((namePart): namePart is string => !!namePart) 
+    );;
+    console.log("Extracted node names:", nodeNames);
+    return Array.from(nodeNames);
+  } catch (e) {
+    console.error("Failed to parse parameter data:", e);
+    return [];
+  }
+}
+
+// Helper to parse parameters for a specific node (replaces extractParametersByNode)
+function extractParametersForNode(data: string, nodeName: string): ParameterDetails[] {
+    if (!data || !nodeName) return [];
+    try {
+        const parsed = JSON.parse(data);
+        if (!parsed.parameters || !Array.isArray(parsed.parameters)) return [];
+
+        const nodeParams: ParameterDetails[] = [];
+        parsed.parameters.forEach((param: { name: string, value: ParameterValueDetails }) => {
+            if (param.name.startsWith(`${nodeName}/`)) {
+                nodeParams.push({
+                    name: param.name.replace(`${nodeName}/`, ''),
+                    value: param.value
+                });
+            }
+        });
+        console.log(`Extracted parameters for node ${nodeName}:`, nodeParams);
+        return nodeParams;
+    } catch (e) {
+        console.error("Failed to extract parameters for node:", e);
+        return [];
+    }
+}
+
+
 function EditParamPanel({
   context,
 }: {
   context: PanelExtensionContext;
 }): ReactElement {
   const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
+
+  // --- Start of new WebSocket logic from example ---
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [parameterData, setParameterData] = useState<string>(""); // Replaces globalEventData
+
+  useEffect(() => {
+    // Using the direct WebSocket connection from your example
+    const websocket = new WebSocket("ws://192.168.1.100:8765", ["foxglove.websocket.v1"]);
+
+    websocket.onopen = () => {
+      console.log("WebSocket connection established");
+      setWs(websocket);
+    };
+    websocket.onerror = (error) => console.error("WebSocket error:", error);
+    websocket.onclose = () => console.log("WebSocket connection closed");
+    websocket.onmessage = (event) => {
+      console.log("Received WebSocket message:", event.data);
+      // Store the raw data in state to be processed by other effects
+      setParameterData(event.data);
+    };
+    // No need to setWs(websocket) here as onopen handles it.
+    return () => {
+      if (websocket.readyState === WebSocket.OPEN) {
+        websocket.close();
+      }
+    };
+  }, []); // Empty dependency array ensures this runs only once on mount
+
+  const fetchParameters = useCallback(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log("Requesting parameters from WebSocket...");
+      ws.send(
+        JSON.stringify({
+          op: "getParameters",
+          parameterNames: [], // Request all parameters
+          id: "fetch-all-parameters",
+        })
+      );
+    } else {
+      console.error("Cannot fetch parameters, WebSocket is not open.");
+    }
+  }, [ws]);
+  // --- End of new WebSocket logic ---
+  
   const [settings, setSettings] = useState<PanelSettings>(() => {
+    // State initialization is unchanged
     const initialState = context.initialState as PanelState;
     const partialSettings = initialState.settings ?? {};
     if (partialSettings === undefined) {
-      console.log("No initial state found");
-      return {
-        selectedNode: "",
-        availableNodeNames: [],
-        selectedParameterName: "",
-        selectedNodeAvailableParams: [],
-        inputType: "number",
-      };
+      return { selectedNode: "", availableNodeNames: [], selectedParameterName: "", selectedNodeAvailableParams: [], inputType: "number" };
     }
-    if (
-      partialSettings.inputType == "number" ||
-      partialSettings.inputType == "slider"
-    ) {
+    if (partialSettings.inputType == "number" || partialSettings.inputType == "slider") {
       const numberSettings = partialSettings as NumericSettings;
-      return {
-        selectedNode: partialSettings.selectedNode ?? "",
-        availableNodeNames: partialSettings.availableNodeNames ?? [],
-        selectedParameterName: partialSettings.selectedParameterName ?? "",
-        selectedNodeAvailableParams:
-          partialSettings.selectedNodeAvailableParams ?? [],
-        inputType: partialSettings.inputType,
-        min: numberSettings.min ?? -100,
-        max: numberSettings.max ?? 100,
-        step: numberSettings.step ?? 0.1,
-      };
+      return { selectedNode: partialSettings.selectedNode ?? "", availableNodeNames: partialSettings.availableNodeNames ?? [], selectedParameterName: partialSettings.selectedParameterName ?? "", selectedNodeAvailableParams: partialSettings.selectedNodeAvailableParams ?? [], inputType: partialSettings.inputType, min: numberSettings.min ?? -100, max: numberSettings.max ?? 100, step: numberSettings.step ?? 0.1 };
     }
-    return {
-      selectedNode: partialSettings.selectedNode ?? "",
-      availableNodeNames: partialSettings.availableNodeNames ?? [],
-      selectedParameterName: partialSettings.selectedParameterName ?? "",
-      selectedNodeAvailableParams:
-        partialSettings.selectedNodeAvailableParams ?? [],
-      inputType: partialSettings.inputType ?? "number",
-    };
+    return { selectedNode: partialSettings.selectedNode ?? "", availableNodeNames: partialSettings.availableNodeNames ?? [], selectedParameterName: partialSettings.selectedParameterName ?? "", selectedNodeAvailableParams: partialSettings.selectedNodeAvailableParams ?? [], inputType: partialSettings.inputType ?? "number" };
   });
 
-  const [formState, setFormState] = useState<FormState>(() => ({
-    currentEditingValue: null,
-  }));
+  const [formState, setFormState] = useState<FormState>({ currentEditingValue: null });
 
-  const settingsActionHandler = useCallback(
-    (action: SettingsTreeAction) => {
-      console.log("Settings action handler", action);
+  const settingsActionHandler = useCallback((action: SettingsTreeAction) => {
+    setSettings((prevConfig) => settingsActionReducer(prevConfig, action));
+  }, []);
 
-      setSettings((prevConfig) => {
-        const newConfig = settingsActionReducer(prevConfig, action);
-        console.log("New config", newConfig);
-        return newConfig;
-      });
-    },
-    [setSettings],
-  );
-
-  // Register the settings tree
   useEffect(() => {
-    console.log("Registering settings tree");
-    context.updatePanelSettingsEditor({
-      actionHandler: settingsActionHandler,
-      nodes: buildSettingsTree(settings),
-    });
-    console.log("Savings settings tree", settings);
-    context.saveState({
-      settings: settings,
-    });
-    console.log("Settings saved", settings);
+    context.updatePanelSettingsEditor({ actionHandler: settingsActionHandler, nodes: buildSettingsTree(settings) });
+    context.saveState({ settings: settings });
   }, [settings, context, settingsActionHandler]);
-
+  
+  // This effect reacts to new data from the WebSocket to update the list of available nodes
   useEffect(() => {
-    if (!settings.selectedNode) {
-      console.log("No node selected");
-      return;
+    const nodeNames = extractNodeNames(parameterData);
+    if (nodeNames.length > 0) {
+        setSettings(prev => ({ ...prev, availableNodeNames: nodeNames }));
     }
-    // Reset editing value when the selected node changes
-    console.log(
-      `Selected node changed to '${settings.selectedNode}', resetting editing value`,
-    );
+  }, [parameterData]);
 
-    /**
-     * Retrieves a list of all parameters for the current node and their values
-     */
-    context
-      .callService?.(settings.selectedNode + "/list_parameters", {})
-      .then((_value: unknown) => {
-        const paramNameList = (_value as any).result.names as string[];
+  // This effect reacts to a node being selected or new data arriving
+  useEffect(() => {
+    if (!settings.selectedNode || !parameterData) return;
+    
+    const paramsForNode = extractParametersForNode(parameterData, settings.selectedNode);
+    setSettings(prev => ({...prev, selectedNodeAvailableParams: paramsForNode}));
+    setFormState({ currentEditingValue: null });
 
-        // Return the next promise to enable proper chaining
-        return {
-          paramNameList,
-          promise: context.callService?.(
-            settings.selectedNode + "/get_parameters",
-            { names: paramNameList },
-          ),
-        };
-      })
-      .then((data) => {
-        if (!data || !data.promise) return;
+  }, [settings.selectedNode, parameterData]);
 
-        const { paramNameList, promise } = data;
-
-        return promise.then((_valueResult: unknown) => {
-          const paramValList = (_valueResult as any)
-            .values as ParameterValueDetails[];
-
-          // Create a new array with transformed values instead of mutating the original
-          const cleanedParamValList = paramValList.map((paramVal, index) => {
-            const cleanedParam = { ...paramVal }; // Create a shallow copy
-
-            // Iterate over object keys
-            for (const key in cleanedParam) {
-              if (Object.prototype.hasOwnProperty.call(cleanedParam, key)) {
-                // Check for undefined or null values
-                if (
-                  cleanedParam[key] === undefined ||
-                  cleanedParam[key] === null
-                ) {
-                  console.log(
-                    `Parameter ${key} is undefined or null at index ${index}`,
-                  );
-                  continue; // Skip to next iteration
-                }
-
-                // Handle BigInt conversion as big ints breal the JSON serialization
-                if (typeof cleanedParam[key] === "bigint") {
-                  cleanedParam[key] = Number(cleanedParam[key]) as any; // Type assertion might be needed
-                }
-              }
-            }
-
-            return cleanedParam;
-          });
-
-          // Create combined parameter objects with names and values
-          const tempList: Array<ParameterDetails> = paramNameList.map(
-            (name, i) => ({
-              name: name,
-              value: cleanedParamValList[i]!,
-            }),
-          );
-
-          // Only update state if we have parameters
-          if (tempList.length > 0) {
-            setSettings({ ...settings, selectedNodeAvailableParams: tempList });
-          }
-          setFormState((prevConfig) => ({
-            ...prevConfig,
-            currentEditingValue: null,
-          }));
-        });
-      })
-      .catch((error) => {
-        console.error(`error, failed to retrieve parameters: ${error.message}`);
-      });
-  }, [settings.selectedNode, context]);
-
-  /**
-   * Updates the list of nodes when a new node appears
-   */
-  const updateNodeList = () => {
-    console.log("retrieving nodes...");
-    context
-      .callService?.("/rosapi/nodes", {})
-      .then((_values: unknown) => {
-        const nodeNames = (_values as any).nodes as string[];
-        console.log("Received node names", nodeNames);
-
-        if (nodeNames.length === 0) {
-          console.log("No nodes found");
-          return;
-        }
-
-        // Sort both arrays for comparison
-        const sortedNewNodes = [...nodeNames].sort();
-        const sortedCurrentNodes = [...settings.availableNodeNames].sort();
-
-        // Check if arrays have different lengths or different content
-        let nodesChanged = sortedNewNodes.length !== sortedCurrentNodes.length;
-
-        if (!nodesChanged) {
-          // Arrays are the same length, check if contents match
-          for (let i = 0; i < sortedNewNodes.length; i++) {
-            if (sortedNewNodes[i] !== sortedCurrentNodes[i]) {
-              nodesChanged = true;
-              break;
-            }
-          }
-        }
-
-        if (nodesChanged) {
-          console.log("Node names changed, updating config");
-          setSettings({ ...settings, availableNodeNames: sortedNewNodes });
-        } else {
-          console.log("No change in node names");
-        }
-      })
-      .catch((_error: Error) => {
-        console.error(_error.toString());
-      });
-  };
-
-  updateNodeList();
-
-  // We use a layout effect to setup render handling for our panel. We also setup some topic subscriptions.
   useLayoutEffect(() => {
-    console.log("Setting up render handler");
-    // The render handler is run by the broader studio system during playback when your panel
-    // needs to render because the fields it is watching have changed. How you handle rendering depends on your framework.
-    // You can only setup one render handler - usually early on in setting up your panel.
-    //
-    // Without a render handler your panel will never receive updates.
-    //
-    // The render handler could be invoked as often as 60hz during playback if fields are changing often.
-    context.onRender = (renderState, done) => {
-      // render functions receive a _done_ callback. You MUST call this callback to indicate your panel has finished rendering.
-      // Your panel will not receive another render callback until _done_ is called from a prior render. If your panel is not done
-      // rendering before the next render call, studio shows a notification to the user that your panel is delayed.
-      //
-      // Set the done callback into a state variable to trigger a re-render.
-      console.log("Render state params", renderState.parameters);
+    context.onRender = (_renderState, done) => {
       setRenderDone(() => done);
     };
   }, [context]);
 
-  // invoke the done callback once the render is complete
   useEffect(() => {
     renderDone?.();
   }, [renderDone]);
-
-  if (
-    settings === undefined ||
-    settings === null ||
-    settings.selectedNodeAvailableParams === undefined ||
-    settings.selectedParameterName === undefined
-  )
-    return <div>Loading...</div>;
-
-  console.log("Current editing value", formState.currentEditingValue);
-
-  const selectedNodeParamsValue = settings.selectedNodeAvailableParams.filter(
-    (x) => x.name == settings.selectedParameterName,
-  )[0]?.value;
-  console.log("Selected node value", selectedNodeParamsValue);
-
-  // Check if the selected node has a value
-  if (!selectedNodeParamsValue) {
-    return <div>No value found. Setup correctly in panel settings</div>;
+  
+  if (!settings.selectedNodeAvailableParams || !settings.selectedParameterName) {
+    return (
+      <div style={{ padding: '1rem' }}>
+        <h2>Parameter Editor</h2>
+        <p>Click the button to fetch parameters from the robot, then select a node and parameter in the panel settings.</p>
+        <button onClick={fetchParameters} style={{ marginTop: "1rem" }}>
+          Fetch Parameters
+        </button>
+      </div>
+    );
   }
+
+  const selectedNodeParamsValue = settings.selectedNodeAvailableParams.find(
+    (x) => x.name == settings.selectedParameterName,
+  )?.value;
+
+  if (!selectedNodeParamsValue) {
+    return (
+        <div style={{ padding: '1rem' }}>
+            <p>Parameter '{settings.selectedParameterName}' not found for node '{settings.selectedNode}'. Try fetching parameters again.</p>
+            <button onClick={fetchParameters} style={{ marginTop: "1rem" }}>
+              Fetch Parameters
+            </button>
+        </div>
+    );
+  }
+
+  // --- RENDER LOGIC WITH `context.setParameter` ---
+
+  const fullParamName = `${settings.selectedNode}.${settings.selectedParameterName}`;
 
   if (settings.inputType === "number") {
     const numberSettings = settings as NumericSettings;
-
-    const numVal = Number(
-      formState.currentEditingValue ||
-        selectedNodeParamsValue.double_value ||
-        selectedNodeParamsValue.integer_value,
-    );
-    console.log("numVal", numVal);
+    const numVal = Number(formState.currentEditingValue ?? selectedNodeParamsValue.double_value ?? selectedNodeParamsValue.integer_value);
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+      <div style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
         <input
           type="number"
           min={numberSettings.min}
@@ -306,51 +221,21 @@ function EditParamPanel({
           step={numberSettings.step}
           value={numVal}
           onChange={(e) => {
-            const value = e.target.value;
-            console.log("e.target.value", value);
-            const service_url = settings.selectedNode + "/set_parameters";
-            console.log("service_url", service_url);
-            const parametersPayload = {
-              parameters: [
-                {
-                  name: settings.selectedParameterName,
-                  value: mapParamValue(selectedNodeParamsValue, value),
-                },
-              ] as ParameterDetails[],
-            };
-            console.log("parameters_payload", parametersPayload);
-
-            context.callService?.(service_url, parametersPayload);
-            setFormState((prevConfig) => ({
-              ...prevConfig,
-              currentEditingValue: value,
-            }));
+            const value = parseFloat(e.target.value);
+            // Use context.setParameter instead of callService
+            context.setParameter(fullParamName, value);
+            setFormState({ currentEditingValue: value });
           }}
-          style={{
-            padding: "0.3rem",
-            margin: "0.3rem",
-          }}
+          style={{ padding: "0.3rem", margin: "0.3rem" }}
         />
       </div>
     );
   }
   if (settings.inputType === "slider") {
-    const numVal = Number(
-      formState.currentEditingValue ||
-        selectedNodeParamsValue.double_value ||
-        selectedNodeParamsValue.integer_value,
-    );
-    console.log("numVal", numVal);
+    const numVal = Number(formState.currentEditingValue ?? selectedNodeParamsValue.double_value ?? selectedNodeParamsValue.integer_value);
     const sliderSettings = settings as NumericSettings;
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+      <div style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
         <input
           type="range"
           min={sliderSettings.min}
@@ -358,95 +243,44 @@ function EditParamPanel({
           step={sliderSettings.step}
           value={numVal}
           onChange={(e) => {
-            const value = e.target.value;
-            console.log("inputrange", value);
-            const service_url = settings.selectedNode + "/set_parameters";
-            console.log("service_url", service_url);
-            const parametersPayload = {
-              parameters: [
-                {
-                  name: settings.selectedParameterName,
-                  value: mapParamValue(selectedNodeParamsValue, value),
-                },
-              ] as ParameterDetails[],
-            };
-            console.log("parameters_payload", parametersPayload);
-            context.callService?.(service_url, parametersPayload);
-            setFormState((prevConfig) => ({
-              ...prevConfig,
-              currentEditingValue: value,
-            }));
+            const value = parseFloat(e.target.value);
+            // Use context.setParameter instead of callService
+            context.setParameter(fullParamName, value);
+            setFormState({ currentEditingValue: value });
           }}
-          style={{ padding: "1rem" }}
+          style={{ padding: "1rem", flexGrow: 1 }}
         />
-        <div>{numVal}</div>
+        <div>{numVal.toFixed(2)}</div>
       </div>
     );
   }
   if (settings.inputType === "boolean") {
     const boolVal = formState.currentEditingValue == null ? selectedNodeParamsValue.bool_value : Boolean(formState.currentEditingValue);
-
     return (
       <input
         type="checkbox"
         checked={boolVal}
         onChange={(e) => {
-          const value = e.target.value;
-          console.log("input checkbox val", value, typeof value);
-          const mappedVal = mapParamValue(
-            selectedNodeParamsValue,
-            e.target.checked.toString(),
-          );
-          console.log("input checkbox mapped val", mappedVal, typeof mappedVal);
-          const parametersPayload = {
-            parameters: [
-              {
-                name: settings.selectedParameterName,
-                value: mappedVal,
-              },
-            ] as ParameterDetails[],
-          };
-          
-          context.callService?.(
-            settings.selectedNode + "/set_parameters",
-            parametersPayload,
-          );
-          setFormState((prevConfig) => ({
-            ...prevConfig,
-            currentEditingValue: mappedVal.bool_value,
-          }));
-          
+          const value = e.target.checked;
+          // Use context.setParameter instead of callService
+          context.setParameter(fullParamName, value);
+          setFormState({ currentEditingValue: value });
         }}
         style={{ padding: "1rem" }}
       />
     );
   }
   if (settings.inputType === "text") {
-    const stringVal = String(
-      formState.currentEditingValue || selectedNodeParamsValue.bool_value,
-    );
+    const stringVal = String(formState.currentEditingValue || selectedNodeParamsValue.string_value);
     return (
       <input
         type="text"
         value={stringVal}
         onChange={(e) => {
           const value = e.target.value;
-          const parametersPayload = {
-            parameters: [
-              {
-                name: settings.selectedParameterName,
-                value: mapParamValue(selectedNodeParamsValue, value),
-              },
-            ] as ParameterDetails[],
-          };
-          context.callService?.(
-            settings.selectedNode + "/set_parameters",
-            parametersPayload,
-          );
-          setFormState((prevConfig) => ({
-            ...prevConfig,
-            currentEditingValue: value,
-          }));
+          // Use context.setParameter instead of callService
+          context.setParameter(fullParamName, value);
+          setFormState({ currentEditingValue: value });
         }}
         style={{ padding: "1rem" }}
       />
@@ -458,8 +292,6 @@ function EditParamPanel({
 export function initEditParamPanel(context: PanelExtensionContext): () => void {
   const root = createRoot(context.panelElement);
   root.render(<EditParamPanel context={context} />);
-
-  // Return a function to run when the panel is removed
   return () => {
     root.unmount();
   };
