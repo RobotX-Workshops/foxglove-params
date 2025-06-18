@@ -1,4 +1,5 @@
 import { PanelExtensionContext, SettingsTreeAction } from "@foxglove/extension";
+import { ParameterDetails, ParameterValueDetails } from "parameter_types";
 import {
   ReactElement,
   useEffect,
@@ -6,6 +7,8 @@ import {
   useState,
   useCallback,
 } from "react";
+import { createRoot } from "react-dom/client";
+
 import {
   NumericSettings,
   PanelSettings,
@@ -13,8 +16,6 @@ import {
   buildSettingsTree,
   settingsActionReducer,
 } from "./panelSettings";
-import { createRoot } from "react-dom/client";
-import { ParameterDetails, ParameterValueDetails } from "parameter_types";
 // The mapParamValue function is no longer needed as context.setParameter handles typing.
 // import { mapParamValue } from "./utils/mappers";
 
@@ -27,7 +28,9 @@ type PanelState = {
 
 // Helper to parse the raw parameter data string (replaces extractNodeNames from example)
 function extractNodeNames(data: string): string[] {
-  if (!data) return [];
+  if (!data) {
+    return [];
+  }
   try {
     // Explicitly type the expected structure from JSON.parse
     const parsed: { parameters?: { name: string }[] } = JSON.parse(data);
@@ -55,10 +58,14 @@ function extractParametersForNode(
   data: string,
   nodeName: string,
 ): ParameterDetails[] {
-  if (!data || !nodeName) return [];
+  if (!data || !nodeName) {
+    return [];
+  }
   try {
     const parsed = JSON.parse(data);
-    if (!parsed.parameters || !Array.isArray(parsed.parameters)) return [];
+    if (!parsed.parameters || !Array.isArray(parsed.parameters)) {
+      return [];
+    }
 
     const nodeParams: ParameterDetails[] = [];
     parsed.parameters.forEach(
@@ -100,8 +107,12 @@ function EditParamPanel({
       console.log("WebSocket connection established");
       setWs(websocket);
     };
-    websocket.onerror = (error) => console.error("WebSocket error:", error);
-    websocket.onclose = () => console.log("WebSocket connection closed");
+    websocket.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+    websocket.onclose = () => {
+      console.log("WebSocket connection closed");
+    };
     websocket.onmessage = (event) => {
       console.log("Received WebSocket message:", event.data);
       // Store the raw data in state to be processed by other effects
@@ -184,7 +195,7 @@ function EditParamPanel({
       actionHandler: settingsActionHandler,
       nodes: buildSettingsTree(settings),
     });
-    context.saveState({ settings: settings });
+    context.saveState({ settings });
   }, [settings, context, settingsActionHandler]);
 
   // This effect reacts to new data from the WebSocket to update the list of available nodes
@@ -197,7 +208,9 @@ function EditParamPanel({
 
   // This effect reacts to a node being selected or new data arriving
   useEffect(() => {
-    if (!settings.selectedNode || !parameterData) return;
+    if (!settings.selectedNode || !parameterData) {
+      return;
+    }
 
     const paramsForNode = extractParametersForNode(
       parameterData,
