@@ -70,9 +70,9 @@ function extractParametersForNode(
     const nodeParams: ParameterDetails[] = [];
     parsed.parameters.forEach(
       (param: { name: string; value: ParameterValueDetails }) => {
-        if (param.name.startsWith(`${nodeName}/`)) {
+        if (param.name.startsWith(`${nodeName}.`)) {
           nodeParams.push({
-            name: param.name.replace(`${nodeName}/`, ""),
+            name: param.name.replace(`${nodeName}.`, ""),
             value: param.value,
           });
         }
