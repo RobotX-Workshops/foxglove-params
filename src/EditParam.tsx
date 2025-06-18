@@ -70,10 +70,14 @@ function extractParametersForNode(
     const nodeParams: ParameterDetails[] = [];
     parsed.parameters.forEach(
       (param: { name: string; value: ParameterValueDetails }) => {
-        if (param.name.startsWith(`${nodeName}.`)) {
+        const paramName = param.name;
+        const nodePrefix = `${nodeName}.`;
+        const paramNameWithoutNode = param.name.replace(nodePrefix, "");
+        const value = param.value;
+        if (paramName.startsWith(nodePrefix)) {
           nodeParams.push({
-            name: param.name.replace(`${nodeName}.`, ""),
-            value: param.value,
+            name: paramNameWithoutNode,
+            value,
           });
         }
       },
@@ -255,7 +259,7 @@ function EditParamPanel({
     (x) => x.name == settings.selectedParameterName,
   )?.value;
 
-  if (!selectedNodeParamsValue) {
+  if (selectedNodeParamsValue == null) {
     return (
       <div style={{ padding: "1rem" }}>
         <p>
