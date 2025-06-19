@@ -1,10 +1,11 @@
-import { SettingsTreeNodes, SettingsTreeFields, SettingsTreeAction } from "@foxglove/extension";
-import { ParameterDetails } from "parameter_types";
-
+import {
+  SettingsTreeNodes,
+  SettingsTreeFields,
+  SettingsTreeAction,
+} from "@foxglove/extension";
 import { produce } from "immer";
 import * as _ from "lodash-es";
-
-
+import { ParameterDetails } from "parameter_types";
 
 export type Settings = {
   selectedNode: string;
@@ -20,11 +21,12 @@ export type NumericSettings = {
   step: number;
 } & Settings;
 
-
 export type PanelSettings = Settings | NumericSettings;
 
-
-export function settingsActionReducer(prevConfig: Settings, action: SettingsTreeAction): Settings {
+export function settingsActionReducer(
+  prevConfig: Settings,
+  action: SettingsTreeAction,
+): Settings {
   return produce(prevConfig, (draft) => {
     if (action.action === "update") {
       const { path, value } = action.payload;
@@ -34,8 +36,6 @@ export function settingsActionReducer(prevConfig: Settings, action: SettingsTree
 }
 
 export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
-
-
   // Build the settings tree based on the config
   const dataSourceFields: SettingsTreeFields = {
     selectedNode: {
@@ -103,7 +103,7 @@ export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
       label: "Step",
       input: "number",
       value: numSettings.step,
-    }
+    };
   }
 
   if (config.inputType === "number") {
@@ -122,7 +122,7 @@ export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
       label: "Step",
       input: "number",
       value: numSettings.step,
-    }
+    };
   }
   const settings: SettingsTreeNodes = {
     dataSource: {

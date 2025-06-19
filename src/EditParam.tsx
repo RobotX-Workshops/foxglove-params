@@ -100,7 +100,7 @@ function EditParamPanel({
   // --- Start of new WebSocket logic from example ---
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [parameterData, setParameterData] = useState<string>(""); // Replaces globalEventData
-
+  
   useEffect(() => {
     // Using the direct WebSocket connection from your example
     const websocket = new WebSocket("ws://localhost:8765", [
@@ -117,10 +117,25 @@ function EditParamPanel({
     websocket.onclose = () => {
       console.log("WebSocket connection closed");
     };
-    websocket.onmessage = (event) => {
-      console.log("Received WebSocket message:", event.data);
-      // Store the raw data in state to be processed by other effects
-      setParameterData(event.data);
+    websocket.onmessage = async (event) => {
+      console.log("Received WebSocket message of type:", typeof event.data);
+
+      // Check if the data is a Blob and needs to be read
+      if (event.data instanceof Blob) {
+        // console.debug("Received Blob data from WebSocket");
+      }
+      // Check if it's already a string
+      else if (typeof event.data === "string") {
+        setParameterData(event.data);
+      }
+      // Handle other unexpected types
+      else {
+        console.error(
+          "Received non-string/non-blob data from WebSocket:",
+          event.data,
+        );
+        return;
+      }      
     };
     // No need to setWs(websocket) here as onopen handles it.
     return () => {
@@ -160,8 +175,8 @@ function EditParamPanel({
       };
     }
     if (
-      partialSettings.inputType == "number" ||
-      partialSettings.inputType == "slider"
+      partialSettings.inputType === "number" ||
+      partialSettings.inputType === "slider"
     ) {
       const numberSettings = partialSettings as NumericSettings;
       return {
@@ -171,9 +186,9 @@ function EditParamPanel({
         selectedNodeAvailableParams:
           partialSettings.selectedNodeAvailableParams ?? [],
         inputType: partialSettings.inputType,
-        min: numberSettings.min ?? -100,
-        max: numberSettings.max ?? 100,
-        step: numberSettings.step ?? 0.1,
+        min: numberSettings.min,
+        max: numberSettings.max,
+        step: numberSettings.step,
       };
     }
     return {
@@ -256,7 +271,7 @@ function EditParamPanel({
   }
 
   const selectedNodeParamsValue = settings.selectedNodeAvailableParams.find(
-    (x) => x.name == settings.selectedParameterName,
+    (x) => x.name === settings.selectedParameterName,
   )?.value;
 
   if (selectedNodeParamsValue == null) {
