@@ -245,6 +245,7 @@ function EditParamPanel({
   });
 
   const settingsActionHandler = useCallback((action: SettingsTreeAction) => {
+    console.debug("Handling settings action:", action);
     setSettings((prevConfig) => settingsActionReducer(prevConfig, action));
   }, []);
 
@@ -284,6 +285,11 @@ function EditParamPanel({
 
     // When the node changes, we must update the available parameters
     // AND reset the selected parameter to maintain a consistent state.
+    console.debug(
+      `Updating available parameters for node ${settings.selectedNode}`,
+      paramsForNode,
+    );
+    // If the selected parameter is not available for the new node, reset it.
     setSettings((prev) => ({
       ...prev,
       selectedNodeAvailableParams: paramsForNode,
@@ -346,10 +352,21 @@ function EditParamPanel({
 
   if (settings.inputType === "number") {
     const numberSettings = settings as NumericSettings;
+    console.log(
+      `Rendering number input for parameter ${fullParamName} with settings:`,
+      numberSettings,
+    );
+    console.log(`Current editing value: ${formState.currentEditingValue}`);
+    console.log(
+      `Selected node parameter value: ${selectedNodeParamsValue.double_value} (double) or ${selectedNodeParamsValue.integer_value} (integer)`,
+    );
     const numVal = Number(
       formState.currentEditingValue ??
         selectedNodeParamsValue.double_value ??
         selectedNodeParamsValue.integer_value,
+    );
+    console.log(
+      `Rendering number input for parameter ${fullParamName} with value ${numVal}`,
     );
     return (
       <div
