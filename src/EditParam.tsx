@@ -102,6 +102,9 @@ function EditParamPanel({
     const initialState = context.initialState as PanelState;
     const partialSettings = initialState.settings ?? {};
     if (partialSettings === undefined) {
+      console.warn(
+        "No initial settings found, using default settings for EditParamPanel",
+      );
       return {
         selectedNode: "",
         availableNodeNames: [],
@@ -119,6 +122,10 @@ function EditParamPanel({
       partialSettings.inputType === "slider"
     ) {
       const numberSettings = partialSettings as NumericSettings;
+      console.log(
+        "Initializing EditParamPanel with numeric settings",
+        numberSettings,
+      );
       return {
         selectedNode: partialSettings.selectedNode ?? "",
         availableNodeNames: partialSettings.availableNodeNames ?? [],
@@ -133,6 +140,10 @@ function EditParamPanel({
       };
     }
     // For non-numeric types, still provide allData and dummy numeric fields to satisfy PanelSettings
+    console.log(
+      "Initializing EditParamPanel with non-numeric settings",
+      partialSettings,
+    );
     return {
       selectedNode: partialSettings.selectedNode ?? "",
       availableNodeNames: partialSettings.availableNodeNames ?? [],
@@ -169,7 +180,7 @@ function EditParamPanel({
       console.log("WebSocket connection closed");
     };
     websocket.onmessage = async (event) => {
-      console.log("Received WebSocket message of type:", typeof event.data);
+      // console.log("Received WebSocket message of type:", typeof event.data);
 
       // Check if the data is a Blob and needs to be read
       if (event.data instanceof Blob) {
@@ -177,6 +188,7 @@ function EditParamPanel({
       }
       // Check if it's already a string
       else if (typeof event.data === "string") {
+
         const nodeNames = extractNodeNames(event.data);
         const allParams = nodeNames.reduce<Record<string, ParameterDetails[]>>(
           (acc, nodeName) => {
@@ -188,7 +200,7 @@ function EditParamPanel({
           },
           {},
         );
-
+        console.log("Received and Extracted node names:", nodeNames);
         setSettings((prev) => ({
           ...prev,
           availableNodeNames: Object.keys(allParams),
@@ -253,6 +265,7 @@ function EditParamPanel({
       actionHandler: settingsActionHandler,
       nodes: buildSettingsTree(settings),
     });
+    console.debug("Updated panel settings editor with new settings", settings);
     context.saveState({ settings });
   }, [settings, context, settingsActionHandler]);
 
@@ -355,6 +368,9 @@ function EditParamPanel({
           value={numVal}
           onChange={(e) => {
             const value = parseFloat(e.target.value);
+            console.log(
+              `Setting parameter ${fullParamName} to ${value} via context.setParameter`,
+            );
             // Use context.setParameter instead of callService
             context.setParameter(fullParamName, value);
             setFormState({ currentEditingValue: value });
@@ -389,6 +405,9 @@ function EditParamPanel({
           onChange={(e) => {
             const value = parseFloat(e.target.value);
             // Use context.setParameter instead of callService
+            console.log(
+              `Setting parameter ${fullParamName} to ${value} via context.setParameter`,
+            );
             context.setParameter(fullParamName, value);
             setFormState({ currentEditingValue: value });
           }}
@@ -409,6 +428,9 @@ function EditParamPanel({
         checked={boolVal}
         onChange={(e) => {
           const value = e.target.checked;
+          console.log(
+            `Setting parameter ${fullParamName} to ${value} via context.setParameter`,
+          );
           // Use context.setParameter instead of callService
           context.setParameter(fullParamName, value);
           setFormState({ currentEditingValue: value });
