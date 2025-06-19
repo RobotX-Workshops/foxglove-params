@@ -16,17 +16,11 @@ declare module "parameter_types" {
     value: ParameterValueDetails;
   };
 
-  export type ParameterValueDetails = {
-    [key: string]: any;
-    type: number;
-    bool_value: boolean;
-    integer_value: number;
-    double_value: number;
-    string_value: string;
-    byte_array_value: number[];
-    bool_array_value: boolean[];
-    integer_array_value: number[];
-    double_array_value: number[];
-    string_array_value: string[];
-  };
+  export type ParameterValueDetails =
+    | number
+    | boolean
+    | string
+    | number[]
+    | boolean[]
+    | string[];
 }

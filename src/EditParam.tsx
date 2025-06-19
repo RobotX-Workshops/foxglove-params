@@ -358,12 +358,10 @@ function EditParamPanel({
     );
     console.log(`Current editing value: ${formState.currentEditingValue}`);
     console.log(
-      `Selected node parameter value: ${selectedNodeParamsValue.double_value} (double) or ${selectedNodeParamsValue.integer_value} (integer)`,
+      `Selected node parameter value ${selectedNodeParamsValue} : ${selectedNodeParamsValue} (double) or ${selectedNodeParamsValue} (integer)`,
     );
     const numVal = Number(
-      formState.currentEditingValue ??
-        selectedNodeParamsValue.double_value ??
-        selectedNodeParamsValue.integer_value,
+      formState.currentEditingValue ?? selectedNodeParamsValue 
     );
     console.log(
       `Rendering number input for parameter ${fullParamName} with value ${numVal}`,
@@ -399,10 +397,14 @@ function EditParamPanel({
   }
   if (settings.inputType === "slider") {
     const numVal = Number(
-      formState.currentEditingValue ??
-        selectedNodeParamsValue.double_value ??
-        selectedNodeParamsValue.integer_value,
+      formState.currentEditingValue ?? selectedNodeParamsValue
     );
+    if (typeof numVal !== "number") {
+      console.warn(
+        `Expected number value for parameter ${fullParamName}, but got: ${numVal}`,
+      );
+      return <div>Invalid boolean value</div>;
+    }
     const sliderSettings = settings as NumericSettings;
     return (
       <div
@@ -435,10 +437,13 @@ function EditParamPanel({
     );
   }
   if (settings.inputType === "boolean") {
-    const boolVal =
-      formState.currentEditingValue == null
-        ? selectedNodeParamsValue.bool_value
-        : Boolean(formState.currentEditingValue);
+    const boolVal = formState.currentEditingValue ?? selectedNodeParamsValue
+    if (typeof boolVal !== "boolean") {
+      console.warn(
+        `Expected boolean value for parameter ${fullParamName}, but got: ${boolVal}`,
+      );
+      return <div>Invalid boolean value</div>;
+    }
     return (
       <input
         type="checkbox"
@@ -458,7 +463,7 @@ function EditParamPanel({
   }
   if (settings.inputType === "text") {
     const stringVal = String(
-      formState.currentEditingValue || selectedNodeParamsValue.string_value,
+      formState.currentEditingValue
     );
     return (
       <input
