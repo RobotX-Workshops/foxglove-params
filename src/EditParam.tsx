@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useState,
   useCallback,
+  useRef,
 } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -96,10 +97,60 @@ function EditParamPanel({
   context: PanelExtensionContext;
 }): ReactElement {
   const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
+  const [settings, setSettings] = useState<PanelSettings>(() => {
+    // State initialization is unchanged
+    const initialState = context.initialState as PanelState;
+    const partialSettings = initialState.settings ?? {};
+    if (partialSettings === undefined) {
+      return {
+        selectedNode: "",
+        availableNodeNames: [],
+        selectedParameterName: "",
+        selectedNodeAvailableParams: [],
+        allData: {},
+        inputType: "number",
+        min: -100,
+        max: 100,
+        step: 0.1,
+      };
+    }
+    if (
+      partialSettings.inputType === "number" ||
+      partialSettings.inputType === "slider"
+    ) {
+      const numberSettings = partialSettings as NumericSettings;
+      return {
+        selectedNode: partialSettings.selectedNode ?? "",
+        availableNodeNames: partialSettings.availableNodeNames ?? [],
+        selectedParameterName: partialSettings.selectedParameterName ?? "",
+        selectedNodeAvailableParams:
+          partialSettings.selectedNodeAvailableParams ?? [],
+        allData: partialSettings.allData ?? {},
+        inputType: partialSettings.inputType,
+        min: numberSettings.min ?? 0,
+        max: numberSettings.max ?? 100,
+        step: numberSettings.step ?? 1,
+      };
+    }
+    // For non-numeric types, still provide allData and dummy numeric fields to satisfy PanelSettings
+    return {
+      selectedNode: partialSettings.selectedNode ?? "",
+      availableNodeNames: partialSettings.availableNodeNames ?? [],
+      selectedParameterName: partialSettings.selectedParameterName ?? "",
+      selectedNodeAvailableParams:
+        partialSettings.selectedNodeAvailableParams ?? [],
+      allData: partialSettings.allData ?? {},
+      inputType: partialSettings.inputType ?? "number",
+      min: 0,
+      max: 100,
+      step: 1,
+    };
+  });
 
   // --- Start of new WebSocket logic from example ---
   const [ws, setWs] = useState<WebSocket | null>(null);
-  const [parameterData, setParameterData] = useState<string>(""); // Replaces globalEventData
+
+  const isInitialMount = useRef(true);
 
   useEffect(() => {
     // Using the direct WebSocket connection from your example
@@ -126,7 +177,23 @@ function EditParamPanel({
       }
       // Check if it's already a string
       else if (typeof event.data === "string") {
-        setParameterData(event.data);
+        const nodeNames = extractNodeNames(event.data);
+        const allParams = nodeNames.reduce<Record<string, ParameterDetails[]>>(
+          (acc, nodeName) => {
+            acc[nodeName] = extractParametersForNode(
+              event.data as string,
+              nodeName,
+            );
+            return acc;
+          },
+          {},
+        );
+
+        setSettings((prev) => ({
+          ...prev,
+          availableNodeNames: Object.keys(allParams),
+          allData: allParams,
+        }));
       }
       // Handle other unexpected types
       else {
@@ -161,46 +228,6 @@ function EditParamPanel({
   }, [ws]);
   // --- End of new WebSocket logic ---
 
-  const [settings, setSettings] = useState<PanelSettings>(() => {
-    // State initialization is unchanged
-    const initialState = context.initialState as PanelState;
-    const partialSettings = initialState.settings ?? {};
-    if (partialSettings === undefined) {
-      return {
-        selectedNode: "",
-        availableNodeNames: [],
-        selectedParameterName: "",
-        selectedNodeAvailableParams: [],
-        inputType: "number",
-      };
-    }
-    if (
-      partialSettings.inputType === "number" ||
-      partialSettings.inputType === "slider"
-    ) {
-      const numberSettings = partialSettings as NumericSettings;
-      return {
-        selectedNode: partialSettings.selectedNode ?? "",
-        availableNodeNames: partialSettings.availableNodeNames ?? [],
-        selectedParameterName: partialSettings.selectedParameterName ?? "",
-        selectedNodeAvailableParams:
-          partialSettings.selectedNodeAvailableParams ?? [],
-        inputType: partialSettings.inputType,
-        min: numberSettings.min,
-        max: numberSettings.max,
-        step: numberSettings.step,
-      };
-    }
-    return {
-      selectedNode: partialSettings.selectedNode ?? "",
-      availableNodeNames: partialSettings.availableNodeNames ?? [],
-      selectedParameterName: partialSettings.selectedParameterName ?? "",
-      selectedNodeAvailableParams:
-        partialSettings.selectedNodeAvailableParams ?? [],
-      inputType: partialSettings.inputType ?? "number",
-    };
-  });
-
   const [formState, setFormState] = useState<FormState>({
     currentEditingValue: null,
   });
@@ -210,6 +237,18 @@ function EditParamPanel({
   }, []);
 
   useEffect(() => {
+    // Check the ref. If it's the initial mount, we do nothing but flip the flag for next time.
+    // We want the component to render with whatever value is loaded from the saved state.
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+    } else {
+      // If it's NOT the initial mount, it means the user has actively selected a new
+      // parameter. NOW it's correct to reset the form's editing state.
+      setFormState({ currentEditingValue: null });
+    }
+  }, [settings.selectedParameterName]);
+
+  useEffect(() => {
     context.updatePanelSettingsEditor({
       actionHandler: settingsActionHandler,
       nodes: buildSettingsTree(settings),
@@ -217,24 +256,18 @@ function EditParamPanel({
     context.saveState({ settings });
   }, [settings, context, settingsActionHandler]);
 
-  // This effect reacts to new data from the WebSocket to update the list of available nodes
-  useEffect(() => {
-    const nodeNames = extractNodeNames(parameterData);
-    if (nodeNames.length > 0) {
-      setSettings((prev) => ({ ...prev, availableNodeNames: nodeNames }));
-    }
-  }, [parameterData]);
-
   // This effect reacts to a node being selected or new data arriving
   useEffect(() => {
-    if (!settings.selectedNode || !parameterData) {
+    if (!settings.selectedNode) {
       return;
     }
 
-    const paramsForNode = extractParametersForNode(
-      parameterData,
-      settings.selectedNode,
-    );
+    const paramsForNode = settings.allData[settings.selectedNode] ?? [];
+
+    let selectedParameterName = "";
+    if (paramsForNode.some((p) => p.name === settings.selectedParameterName)) {
+      selectedParameterName = settings.selectedParameterName;
+    }
 
     // When the node changes, we must update the available parameters
     // AND reset the selected parameter to maintain a consistent state.
@@ -242,11 +275,11 @@ function EditParamPanel({
       ...prev,
       selectedNodeAvailableParams: paramsForNode,
       // Reset the selected parameter. Default to the first new parameter or an empty string.
-      selectedParameterName: paramsForNode[0]?.name ?? "",
+      selectedParameterName,
     }));
 
     setFormState({ currentEditingValue: null });
-  }, [settings.selectedNode, parameterData]);
+  }, [settings.selectedNode, settings.allData, settings.selectedParameterName]);
 
   useLayoutEffect(() => {
     context.onRender = (_renderState, done) => {
