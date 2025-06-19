@@ -100,7 +100,7 @@ function EditParamPanel({
   // --- Start of new WebSocket logic from example ---
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [parameterData, setParameterData] = useState<string>(""); // Replaces globalEventData
-  
+
   useEffect(() => {
     // Using the direct WebSocket connection from your example
     const websocket = new WebSocket("ws://localhost:8765", [
@@ -135,7 +135,7 @@ function EditParamPanel({
           event.data,
         );
         return;
-      }      
+      }
     };
     // No need to setWs(websocket) here as onopen handles it.
     return () => {
@@ -235,10 +235,16 @@ function EditParamPanel({
       parameterData,
       settings.selectedNode,
     );
+
+    // When the node changes, we must update the available parameters
+    // AND reset the selected parameter to maintain a consistent state.
     setSettings((prev) => ({
       ...prev,
       selectedNodeAvailableParams: paramsForNode,
+      // Reset the selected parameter. Default to the first new parameter or an empty string.
+      selectedParameterName: paramsForNode[0]?.name ?? "",
     }));
+
     setFormState({ currentEditingValue: null });
   }, [settings.selectedNode, parameterData]);
 
