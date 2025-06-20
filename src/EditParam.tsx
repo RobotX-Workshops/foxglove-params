@@ -143,7 +143,6 @@ function EditParamPanel({
           },
           {},
         );
-        console.log("Received and Extracted node names:", nodeNames);
         setSettings((prev) => ({
           ...prev,
           availableNodeNames: Object.keys(allParams),
