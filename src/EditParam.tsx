@@ -36,6 +36,7 @@ function EditParamPanel({
 }): ReactElement {
   const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [settings, setSettings] = useState<PanelSettings>(() => {
     // State initialization is unchanged
     const initialState = context.initialState as PanelState;
@@ -100,6 +101,7 @@ function EditParamPanel({
 
   const isInitialMount = useRef(true);
 
+  // Setup WebSocket connection to fetch parameters on startup
   useEffect(() => {
     // Using the direct WebSocket connection from your example
     const websocket = new WebSocket("ws://localhost:8765", [
@@ -124,8 +126,6 @@ function EditParamPanel({
       console.log("WebSocket connection closed");
     };
     websocket.onmessage = async (event) => {
-      // console.log("Received WebSocket message of type:", typeof event.data);
-
       // Check if the data is a Blob and needs to be read
       if (event.data instanceof Blob) {
         // console.debug("Received Blob data from WebSocket");
@@ -148,7 +148,6 @@ function EditParamPanel({
           availableNodeNames: Object.keys(allParams),
           allData: allParams,
         }));
-        setIsLoading(false);
       }
       // Handle other unexpected types
       else {
@@ -179,7 +178,7 @@ function EditParamPanel({
   useEffect(() => {
     // Check the ref. If it's the initial mount, we do nothing but flip the flag for next time.
     // We want the component to render with whatever value is loaded from the saved state.
-    if (isInitialMount.current) {
+    if (isInitialMount.current || isLoading || !isInitialized) {
       isInitialMount.current = false;
     } else {
       // If it's NOT the initial mount, it means the user has actively selected a new
@@ -189,16 +188,18 @@ function EditParamPanel({
       );
       setFormState({ currentEditingValue: null });
     }
-  }, [settings.selectedParameterName]);
+  }, [settings.selectedParameterName, isLoading, isInitialized]);
 
   useEffect(() => {
     context.updatePanelSettingsEditor({
       actionHandler: settingsActionHandler,
       nodes: buildSettingsTree(settings),
     });
-    console.debug("Updated panel settings editor with new settings", settings);
-    context.saveState({ settings });
   }, [settings, context, settingsActionHandler]);
+
+  useEffect(() => {
+    context.saveState({ settings });
+  }, [settings, context]);
 
   // This effect reacts to a node being selected or new data arriving
   useEffect(() => {
@@ -206,19 +207,38 @@ function EditParamPanel({
       return;
     }
 
+    if (!settings.allData) {
+      console.warn(
+        "No parameter data available yet. Waiting for WebSocket to provide data.",
+      );
+      return;
+    }
+
     const paramsForNode = settings.allData[settings.selectedNode] ?? [];
 
+    if (paramsForNode.length === 0) {
+      console.warn(
+        `No parameters found for node ${settings.selectedNode}. Please ensure the WebSocket server is providing parameter data.`,
+      );
+      return;
+    }
+
     let selectedParameterName = "";
+    console.log(
+      `Searching for selected parameter ${settings.selectedParameterName} in node ${settings.selectedNode} parameters:`,
+      paramsForNode,
+    );
     if (paramsForNode.some((p) => p.name === settings.selectedParameterName)) {
       console.log(
         `Keeping selected parameter ${settings.selectedParameterName} for node ${settings.selectedNode}`,
       );
       selectedParameterName = settings.selectedParameterName;
     }
+    console.log(`Available parameters for node ${selectedParameterName}`);
 
     // When the node changes, we must update the available parameters
     // AND reset the selected parameter to maintain a consistent state.
-    console.debug(
+    console.log(
       `Updating available parameters for node ${settings.selectedNode}`,
       paramsForNode,
     );
@@ -231,6 +251,20 @@ function EditParamPanel({
     }));
 
     setFormState({ currentEditingValue: null });
+
+    console.log(
+      `Parameters for node ${settings.selectedNode} updated. Available parameters:`,
+      paramsForNode,
+    );
+    if (!isInitialized) {
+      setIsInitialized(true);
+      console.log("EditParamPanel initialized with settings:", settings);
+    }
+
+    if (!isInitialized) {
+      console.log("EditParamPanel is now initialized");
+      setIsInitialized(true);
+    }
   }, [settings.selectedNode, settings.allData, settings.selectedParameterName]);
 
   useLayoutEffect(() => {
