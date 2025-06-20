@@ -185,6 +185,9 @@ function EditParamPanel({
     } else {
       // If it's NOT the initial mount, it means the user has actively selected a new
       // parameter. NOW it's correct to reset the form's editing state.
+      console.log(
+        `Selected parameter changed to ${settings.selectedParameterName}, resetting form state`,
+      );
       setFormState({ currentEditingValue: null });
     }
   }, [settings.selectedParameterName]);
@@ -208,6 +211,9 @@ function EditParamPanel({
 
     let selectedParameterName = "";
     if (paramsForNode.some((p) => p.name === settings.selectedParameterName)) {
+      console.log(
+        `Keeping selected parameter ${settings.selectedParameterName} for node ${settings.selectedNode}`,
+      );
       selectedParameterName = settings.selectedParameterName;
     }
 

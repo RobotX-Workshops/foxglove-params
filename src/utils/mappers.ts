@@ -40,7 +40,6 @@ export function extractNodeNames(data: string): string[] {
         .map((p) => p.name.split(".")[0])
         .filter((namePart): namePart is string => !!namePart),
     );
-    console.log("Extracted node names:", nodeNames);
     return Array.from(nodeNames);
   } catch (e) {
     console.error("Failed to parse parameter data:", e);
@@ -80,7 +79,6 @@ export function extractParametersForNode(
         }
       },
     );
-    console.log(`Extracted parameters for node ${nodeName}:`, nodeParams);
     return nodeParams;
   } catch (e) {
     console.error("Failed to extract parameters for node:", e);
