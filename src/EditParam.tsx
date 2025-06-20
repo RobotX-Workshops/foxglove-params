@@ -256,7 +256,7 @@ function EditParamPanel({
     // );
   }
 
-  if (Object.keys(settings.allData).length === 0) {
+  if (!settings.allData || Object.keys(settings.allData).length === 0) {
     return (
       <div style={{ padding: "1rem" }}>
         <p>
