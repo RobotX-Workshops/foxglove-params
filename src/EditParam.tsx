@@ -256,14 +256,20 @@ function EditParamPanel({
       `Parameters for node ${settings.selectedNode} updated. Available parameters:`,
       paramsForNode,
     );
+    if (paramsForNode.length === 0) {
+      console.warn(
+        `No parameters available for node ${settings.selectedNode}. Please ensure the WebSocket server is providing parameter data.`,
+      );
+      return;
+    }
     if (!isInitialized) {
       setIsInitialized(true);
       console.log("EditParamPanel initialized with settings:", settings);
     }
 
-    if (!isInitialized) {
+    if (isLoading) {
       console.log("EditParamPanel is now initialized");
-      setIsInitialized(true);
+      setIsLoading(false);
     }
   }, [settings.selectedNode, settings.allData, settings.selectedParameterName]);
 
