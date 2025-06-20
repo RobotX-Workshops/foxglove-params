@@ -1,5 +1,5 @@
 import { PanelExtensionContext, SettingsTreeAction } from "@foxglove/extension";
-import { ParameterDetails, ParameterValueDetails } from "parameter_types";
+import { ParameterDetails } from "parameter_types";
 import {
   ReactElement,
   useEffect,
@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 
+// import { LoadingSpinner } from "./components/spinner";
 import {
   NumericSettings,
   PanelSettings,
@@ -17,6 +18,7 @@ import {
   buildSettingsTree,
   settingsActionReducer,
 } from "./panelSettings";
+import { extractNodeNames, extractParametersForNode } from "./utils/mappers";
 // The mapParamValue function is no longer needed as context.setParameter handles typing.
 // import { mapParamValue } from "./utils/mappers";
 
@@ -27,81 +29,19 @@ type PanelState = {
   settings: Partial<Settings> | undefined;
 };
 
-// Helper to parse the raw parameter data string (replaces extractNodeNames from example)
-function extractNodeNames(data: string): string[] {
-  if (!data) {
-    return [];
-  }
-  try {
-    // Explicitly type the expected structure from JSON.parse
-    const parsed: { parameters?: { name: string }[] } = JSON.parse(data);
-
-    if (!parsed.parameters || !Array.isArray(parsed.parameters)) {
-      return [];
-    }
-
-    // Safely extract node names
-    const nodeNames = new Set(
-      parsed.parameters
-        .map((p) => p.name.split(".")[0])
-        .filter((namePart): namePart is string => !!namePart),
-    );
-    console.log("Extracted node names:", nodeNames);
-    return Array.from(nodeNames);
-  } catch (e) {
-    console.error("Failed to parse parameter data:", e);
-    return [];
-  }
-}
-
-// Helper to parse parameters for a specific node (replaces extractParametersByNode)
-function extractParametersForNode(
-  data: string,
-  nodeName: string,
-): ParameterDetails[] {
-  if (!data || !nodeName) {
-    return [];
-  }
-  try {
-    const parsed = JSON.parse(data);
-    if (!parsed.parameters || !Array.isArray(parsed.parameters)) {
-      return [];
-    }
-
-    const nodeParams: ParameterDetails[] = [];
-    parsed.parameters.forEach(
-      (param: { name: string; value: ParameterValueDetails }) => {
-        const paramName = param.name;
-        const nodePrefix = `${nodeName}.`;
-        const paramNameWithoutNode = param.name.replace(nodePrefix, "");
-        const value = param.value;
-        if (paramName.startsWith(nodePrefix)) {
-          nodeParams.push({
-            name: paramNameWithoutNode,
-            value,
-          });
-        }
-      },
-    );
-    console.log(`Extracted parameters for node ${nodeName}:`, nodeParams);
-    return nodeParams;
-  } catch (e) {
-    console.error("Failed to extract parameters for node:", e);
-    return [];
-  }
-}
-
 function EditParamPanel({
   context,
 }: {
   context: PanelExtensionContext;
 }): ReactElement {
   const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
+  const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState<PanelSettings>(() => {
     // State initialization is unchanged
     const initialState = context.initialState as PanelState;
     const partialSettings = initialState.settings ?? {};
-    if (partialSettings === undefined) {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (partialSettings == undefined) {
       console.warn(
         "No initial settings found, using default settings for EditParamPanel",
       );
@@ -158,9 +98,6 @@ function EditParamPanel({
     };
   });
 
-  // --- Start of new WebSocket logic from example ---
-  const [ws, setWs] = useState<WebSocket | null>(null);
-
   const isInitialMount = useRef(true);
 
   useEffect(() => {
@@ -171,7 +108,14 @@ function EditParamPanel({
 
     websocket.onopen = () => {
       console.log("WebSocket connection established");
-      setWs(websocket);
+      setIsLoading(true);
+      websocket.send(
+        JSON.stringify({
+          op: "getParameters",
+          parameterNames: [], // Request all parameters
+          id: "fetch-all-parameters-on-startup",
+        }),
+      );
     };
     websocket.onerror = (error) => {
       console.error("WebSocket error:", error);
@@ -188,7 +132,6 @@ function EditParamPanel({
       }
       // Check if it's already a string
       else if (typeof event.data === "string") {
-
         const nodeNames = extractNodeNames(event.data);
         const allParams = nodeNames.reduce<Record<string, ParameterDetails[]>>(
           (acc, nodeName) => {
@@ -206,6 +149,7 @@ function EditParamPanel({
           availableNodeNames: Object.keys(allParams),
           allData: allParams,
         }));
+        setIsLoading(false);
       }
       // Handle other unexpected types
       else {
@@ -223,22 +167,6 @@ function EditParamPanel({
       }
     };
   }, []); // Empty dependency array ensures this runs only once on mount
-
-  const fetchParameters = useCallback(() => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      console.log("Requesting parameters from WebSocket...");
-      ws.send(
-        JSON.stringify({
-          op: "getParameters",
-          parameterNames: [], // Request all parameters
-          id: "fetch-all-parameters",
-        }),
-      );
-    } else {
-      console.error("Cannot fetch parameters, WebSocket is not open.");
-    }
-  }, [ws]);
-  // --- End of new WebSocket logic ---
 
   const [formState, setFormState] = useState<FormState>({
     currentEditingValue: null,
@@ -310,38 +238,47 @@ function EditParamPanel({
     renderDone?.();
   }, [renderDone]);
 
-  if (
-    !settings.selectedNodeAvailableParams ||
-    !settings.selectedParameterName
-  ) {
-    return (
-      <div style={{ padding: "1rem" }}>
-        <h2>Parameter Editor</h2>
-        <p>
-          Click the button to fetch parameters from the robot, then select a
-          node and parameter in the panel settings.
-        </p>
-        <button onClick={fetchParameters} style={{ marginTop: "1rem" }}>
-          Fetch Parameters
-        </button>
-      </div>
-    );
-  }
-
   const selectedNodeParamsValue = settings.selectedNodeAvailableParams.find(
     (x) => x.name === settings.selectedParameterName,
   )?.value;
 
-  if (selectedNodeParamsValue == null) {
+  if (isLoading) {
+    return <div style={{ padding: "1rem" }}>Loading params data...</div>;
+    // return (
+    //   <div style={{ padding: "1rem" }}>
+    //     <LoadingSpinner />
+    //   </div>
+    // );
+  }
+
+  if (Object.keys(settings.allData).length === 0) {
     return (
       <div style={{ padding: "1rem" }}>
         <p>
-          Parameter '{settings.selectedParameterName}' not found for node '
-          {settings.selectedNode}'. Try fetching parameters again.
+          Could not load parameters. Please ensure the WebSocket server is
+          running and providing parameter data.
         </p>
-        <button onClick={fetchParameters} style={{ marginTop: "1rem" }}>
-          Fetch Parameters
-        </button>
+      </div>
+    );
+  }
+
+  if (!settings.selectedNode) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <p>
+          Please select a node to view and edit its parameters. The available
+          nodes will be populated once the WebSocket connection is established.
+        </p>
+      </div>
+    );
+  }
+
+  if (!settings.selectedParameterName) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <p>
+          Please select a parameter from the settings panel to edit its value.
+        </p>
       </div>
     );
   }
@@ -356,12 +293,14 @@ function EditParamPanel({
       `Rendering number input for parameter ${fullParamName} with settings:`,
       numberSettings,
     );
+    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
     console.log(`Current editing value: ${formState.currentEditingValue}`);
     console.log(
+      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
       `Selected node parameter value ${selectedNodeParamsValue} : ${selectedNodeParamsValue} (double) or ${selectedNodeParamsValue} (integer)`,
     );
     const numVal = Number(
-      formState.currentEditingValue ?? selectedNodeParamsValue 
+      formState.currentEditingValue ?? selectedNodeParamsValue,
     );
     console.log(
       `Rendering number input for parameter ${fullParamName} with value ${numVal}`,
@@ -397,7 +336,7 @@ function EditParamPanel({
   }
   if (settings.inputType === "slider") {
     const numVal = Number(
-      formState.currentEditingValue ?? selectedNodeParamsValue
+      formState.currentEditingValue ?? selectedNodeParamsValue,
     );
     if (typeof numVal !== "number") {
       console.warn(
@@ -437,9 +376,10 @@ function EditParamPanel({
     );
   }
   if (settings.inputType === "boolean") {
-    const boolVal = formState.currentEditingValue ?? selectedNodeParamsValue
+    const boolVal = formState.currentEditingValue ?? selectedNodeParamsValue;
     if (typeof boolVal !== "boolean") {
       console.warn(
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         `Expected boolean value for parameter ${fullParamName}, but got: ${boolVal}`,
       );
       return <div>Invalid boolean value</div>;
@@ -451,6 +391,7 @@ function EditParamPanel({
         onChange={(e) => {
           const value = e.target.checked;
           console.log(
+            // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
             `Setting parameter ${fullParamName} to ${value} via context.setParameter`,
           );
           // Use context.setParameter instead of callService
@@ -462,9 +403,7 @@ function EditParamPanel({
     );
   }
   if (settings.inputType === "text") {
-    const stringVal = String(
-      formState.currentEditingValue
-    );
+    const stringVal = String(formState.currentEditingValue);
     return (
       <input
         type="text"

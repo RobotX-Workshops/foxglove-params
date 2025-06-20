@@ -37,6 +37,7 @@ export function settingsActionReducer(
 }
 
 export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
+  console.log("Building settings tree with config:", config);
   // Build the settings tree based on the config
   const dataSourceFields: SettingsTreeFields = {
     selectedNode: {
@@ -89,6 +90,7 @@ export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
   };
 
   if (config.inputType === "slider") {
+    // eslint-disable-next-line no-var
     var numSettings = config as NumericSettings;
     dataSourceFields["min"] = {
       label: "Min",
@@ -108,6 +110,7 @@ export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
   }
 
   if (config.inputType === "number") {
+    // eslint-disable-next-line no-var
     var numSettings = config as NumericSettings;
     dataSourceFields["min"] = {
       label: "Min",
