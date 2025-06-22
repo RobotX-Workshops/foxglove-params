@@ -93,8 +93,9 @@ function EditParamPanel({
     return (
       <div style={{ padding: "1rem" }}>
         <p>
-          Please select a node to view and edit its parameters. The available
-          nodes will be populated once the WebSocket connection is established.
+          Please select a node in the settings panel to view and edit its
+          parameters. The available nodes will be populated once the WebSocket
+          connection is established.
         </p>
       </div>
     );
