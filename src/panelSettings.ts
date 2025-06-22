@@ -11,7 +11,6 @@ export type Settings = {
   selectedNode: string;
   availableNodeNames: Array<string>;
   selectedParameterName: string;
-  allData: Record<string, ParameterDetails[]> | undefined;
   selectedNodeAvailableParams: Array<ParameterDetails>;
   inputType: "number" | "slider" | "boolean" | "select" | "text";
 };
