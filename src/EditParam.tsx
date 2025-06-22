@@ -73,6 +73,16 @@ function EditParamPanel({
             name: param_name,
             value: value as ParameterValueDetails, // Cast to the expected type
           });
+
+          setSettings((prevSettings: PanelSettings): PanelSettings => {
+            const updatedSettings: PanelSettings = {
+              ...prevSettings,
+              params: new Map(prevSettings.params), // Create a shallow copy of the params map
+            };
+            // Update the parameters for this node
+            updatedSettings.params.set(node_name, params.get(node_name) ?? []);
+            return updatedSettings;
+          });
         });
       } else {
         console.warn(
