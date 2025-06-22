@@ -24,7 +24,7 @@ function EditParamPanel({
     const initialState = context.initialState as
       | Partial<PanelState>
       | undefined;
-    if (!initialState?.settings) {
+    if (initialState?.settings == undefined) {
       console.warn(
         "No initial state found, using default settings for EditParamPanel",
       );
