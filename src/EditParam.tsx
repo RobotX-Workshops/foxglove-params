@@ -3,7 +3,7 @@ import { ParameterDetails, ParameterValueDetails } from "parameter_types";
 import { ReactElement, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
-import { PanelSettings } from "./panelSettings";
+import { NumericSettings, PanelSettings } from "./panelSettings";
 
 function EditParamPanel({
   context,
@@ -89,13 +89,165 @@ function EditParamPanel({
     };
   }, [context]);
 
-  return (
-    <div>
-      <h1>Edit Parameter</h1>
-      <p>This panel allows you to edit parameters of a selected node.</p>
-      <p>Check the browser console for parameter logs.</p>
-    </div>
+  if (!settings.selectedNode) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <p>
+          Please select a node to view and edit its parameters. The available
+          nodes will be populated once the WebSocket connection is established.
+        </p>
+      </div>
+    );
+  }
+
+  if (!settings.selectedParameterName) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <p>
+          Please select a parameter from the settings panel to edit its value.
+        </p>
+      </div>
+    );
+  }
+
+  // --- RENDER LOGIC WITH `context.setParameter` ---
+
+  const nodeParams = settings.params.get(settings.selectedNode) ?? [];
+
+  if (!Array.isArray(nodeParams) || nodeParams.length === 0) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <p>
+          No parameters found for the selected node: {settings.selectedNode}
+        </p>
+      </div>
+    );
+  }
+
+  const fullParamName = `${settings.selectedNode}.${settings.selectedParameterName}`;
+
+  const selectedParam = nodeParams.find(
+    (param) => param.name === settings.selectedParameterName,
   );
+
+  if (!selectedParam) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <p>
+          Parameter &quot;{settings.selectedParameterName}&quot; not found for
+          {settings.selectedNode}.
+        </p>
+      </div>
+    );
+  }
+
+  if (settings.inputType === "number") {
+    const numberSettings = settings as NumericSettings;
+
+    const numVal = Number(selectedParam.value);
+
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <input
+          type="number"
+          min={numberSettings.min}
+          max={numberSettings.max}
+          step={numberSettings.step}
+          value={numVal}
+          onChange={(e) => {
+            const value = parseFloat(e.target.value);
+            console.log(
+              `Setting parameter ${fullParamName} to ${value} via context.setParameter`,
+            );
+            context.setParameter(fullParamName, value);
+          }}
+          style={{ padding: "0.3rem", margin: "0.3rem" }}
+        />
+      </div>
+    );
+  }
+  if (settings.inputType === "slider") {
+    const numVal = Number(selectedParam.value);
+    if (isNaN(numVal)) {
+      console.warn(
+        `Expected number value for parameter ${fullParamName}, but got: ${String(selectedParam.value)}`,
+      );
+      return <div>Invalid number value</div>;
+    }
+    const sliderSettings = settings as NumericSettings;
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <input
+          type="range"
+          min={sliderSettings.min}
+          max={sliderSettings.max}
+          step={sliderSettings.step}
+          value={numVal}
+          onChange={(e) => {
+            const value = parseFloat(e.target.value);
+
+            context.setParameter(fullParamName, value);
+          }}
+          style={{ padding: "1rem", flexGrow: 1 }}
+        />
+        <div>{numVal.toFixed(2)}</div>
+      </div>
+    );
+  }
+  if (settings.inputType === "boolean") {
+    if (typeof selectedParam.value !== "boolean") {
+      console.warn(
+        `Expected boolean value for parameter ${fullParamName}, but got: ${String(selectedParam.value)}`,
+      );
+      return <div>Invalid boolean value</div>;
+    }
+    return (
+      <input
+        type="checkbox"
+        checked={selectedParam.value}
+        onChange={(e) => {
+          const value = e.target.checked;
+          context.setParameter(fullParamName, value);
+        }}
+        style={{ padding: "1rem" }}
+      />
+    );
+  }
+  if (settings.inputType === "text") {
+    if (typeof selectedParam.value !== "string") {
+      console.warn(
+        `Expected string value for parameter ${fullParamName}, but got: ${String(selectedParam.value)}`,
+      );
+      return <div>Invalid text value</div>;
+    }
+    return (
+      <input
+        type="text"
+        value={selectedParam.value}
+        onChange={(e) => {
+          const value = e.target.value;
+          // Use context.setParameter instead of callService
+          context.setParameter(fullParamName, value);
+        }}
+        style={{ padding: "1rem" }}
+      />
+    );
+  }
+  return <div>Unknown input type</div>;
 }
 
 export function initEditParamPanel(context: PanelExtensionContext): () => void {
