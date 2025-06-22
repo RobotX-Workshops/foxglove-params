@@ -5,27 +5,15 @@ import {
 } from "@foxglove/extension";
 import { produce } from "immer";
 import * as _ from "lodash-es";
-import { ParameterDetails } from "parameter_types";
 
-export type Settings = {
-  params: Map<string, Array<ParameterDetails>>;
-  selectedNode: string;
-  selectedParameterName: string;
-  inputType: "number" | "slider" | "boolean" | "select" | "text";
-};
-
-export type NumericSettings = {
-  min: number;
-  max: number;
-  step: number;
-} & Settings;
-
-export type SelectSettings = {
-  selectOptions: Array<string>;
-  selectOptionsAmount: number;
-} & Settings;
-
-export type PanelSettings = Settings | NumericSettings | SelectSettings;
+import { DefaultNumberParams } from "./constants/defaultValues";
+import {
+  PanelSettings,
+  Settings,
+  NumericSettings,
+  SelectSettings,
+  ParameterDetails,
+} from "./types";
 
 export function settingsActionReducer(
   prevConfig: Settings,
@@ -46,11 +34,27 @@ export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
     console.warn("Invalid config provided to buildSettingsTree:", config);
     return {};
   }
+
+  // Check that the params Map has the get method
+  if (
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, @typescript-eslint/strict-boolean-expressions
+    !config.params ||
+    typeof config.params.get !== "function" ||
+    config.params.size === 0
+  ) {
+    console.warn("Invalid params Map in config:", config.params);
+    return {};
+  }
+
   // Build the settings tree based on the config
-  const selectedNodeParams = config.params.get(config.selectedNode) ?? [];
+  const selectedNodeParams: Array<ParameterDetails> =
+    config.params.get(config.selectedNode) ?? [];
   const inputOptions = [];
 
-  if (selectedNodeParams.find((param) => typeof param.value === "boolean")) {
+  if (
+    selectedNodeParams.find((param) => typeof param.value === "boolean") !=
+    undefined
+  ) {
     inputOptions.push({
       label: "Boolean",
       value: "boolean",
@@ -139,8 +143,8 @@ export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
   };
 
   if (config.inputType === "slider") {
-    // eslint-disable-next-line no-var
-    var numSettings = config as NumericSettings;
+    const tempSettings = { ...DefaultNumberParams, ...config };
+    const numSettings = tempSettings as NumericSettings;
     dataSourceFields["min"] = {
       label: "Min",
       input: "number",
@@ -159,8 +163,8 @@ export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
   }
 
   if (config.inputType === "number") {
-    // eslint-disable-next-line no-var
-    var numSettings = config as NumericSettings;
+    const tempSettings = { ...DefaultNumberParams, ...config };
+    const numSettings = tempSettings as NumericSettings;
     dataSourceFields["min"] = {
       label: "Min",
       input: "number",

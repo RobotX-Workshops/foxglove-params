@@ -1,4 +1,4 @@
-import { ParameterDetails, ParameterValueDetails } from "parameter_types";
+import { ParameterDetails, ParameterValueDetails } from "../types";
 
 /**
  * Parses the flat parameter map from Foxglove's renderState into a structured

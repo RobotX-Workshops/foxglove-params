@@ -1,15 +1,16 @@
 import { PanelExtensionContext } from "@foxglove/extension";
-import { ParameterValueDetails } from "parameter_types";
 import { ReactElement, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
+import { buildSettingsTree, settingsActionReducer } from "./panelSettings";
 import {
   NumericSettings,
   PanelSettings,
+  PanelState,
+  ParameterDetails,
+  ParameterValueDetails,
   Settings,
-  buildSettingsTree,
-  settingsActionReducer,
-} from "./panelSettings";
+} from "./types";
 import { parseParameters } from "./utils/mappers";
 
 function EditParamPanel({
@@ -57,8 +58,6 @@ function EditParamPanel({
   });
 
   useEffect(() => {
-    console.log("EditParamPanel effect is running.");
-
     // Tell Foxglove we want to receive parameter updates.
     context.watch("parameters");
 
@@ -66,13 +65,12 @@ function EditParamPanel({
     context.onRender = (renderState, done) => {
       if (renderState.parameters) {
         const incomingParameters = renderState.parameters;
-
         const params = parseParameters(incomingParameters);
 
         setSettings((prevSettings: PanelSettings): PanelSettings => {
           const updatedSettings: PanelSettings = {
             ...prevSettings,
-            params: new Map(params),
+            params: new Map(params as Iterable<[string, ParameterDetails[]]>),
           };
           // Update the parameters for this node
           return updatedSettings;
@@ -98,53 +96,15 @@ function EditParamPanel({
   }, [context]);
 
   useEffect(() => {
+    context.saveState({ settings });
+  }, [settings, context]);
+
+  useEffect(() => {
     context.updatePanelSettingsEditor({
       actionHandler: (action) => {
-        setSettings((prevSettings) => {
-          if (action.action === "update") {
-            const path = action.payload.path;
-            const value = action.payload.value;
-
-            // Check if the path to the changed setting matches what you expect.
-            // The path is an array of strings representing the keys in your settings tree. [3]
-            // For a path of, your SettingsTree nodes would
-            // be structured like: { nodes: { dataSource: { fields: { inputType:... } } } }
-            const isInputTypePath =
-              path.length === 2 &&
-              path[0] === "dataSource" &&
-              path[1] === "inputType";
-
-            if (isInputTypePath) {
-              // Finally, check if the new value is "number".
-              if (value === "number") {
-                console.log('Input type was set to "number".');
-                const prevSet = prevSettings as any;
-                if (!prevSet.min) {
-                  console.warn(
-                    "No min value set for numeric input type. Defaulting to 0.",
-                  );
-                }
-                if (!prevSet.max) {
-                  console.warn(
-                    "No max value set for numeric input type. Defaulting to 100.",
-                  );
-                }
-                setSettings((prevSett) => {
-                  // Ensure we return a new object with the updated properties.
-                  // This is important for React to detect changes.
-                  return {
-                    ...prevSett,
-                    inputType: "number",
-                    min: prevSet.min ?? -100,
-                    max: prevSet.max ?? 100,
-                    step: prevSet.step ?? 0.1,
-                  };
-                });
-              }
-            }
-          }
-          return settingsActionReducer(prevSettings, action);
-        });
+        setSettings((prevSettings) =>
+          settingsActionReducer(prevSettings, action),
+        );
       },
       nodes: buildSettingsTree(settings),
     });
@@ -173,8 +133,22 @@ function EditParamPanel({
   }
 
   // --- RENDER LOGIC WITH `context.setParameter` ---
+  // Check that the .get method exists on the params Map
+  if (
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, @typescript-eslint/strict-boolean-expressions
+    !settings.params ||
+    settings.params.size === 0 ||
+    typeof settings.params.get !== "function"
+  ) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <p>No parameters available for the selected node.</p>
+      </div>
+    );
+  }
 
-  const nodeParams = settings.params.get(settings.selectedNode) ?? [];
+  const nodeParams: Array<ParameterDetails> =
+    settings.params.get(settings.selectedNode) ?? [];
 
   if (!Array.isArray(nodeParams) || nodeParams.length === 0) {
     return (
@@ -192,7 +166,7 @@ function EditParamPanel({
     (param) => param.name === settings.selectedParameterName,
   );
 
-  if (!selectedParam) {
+  if (selectedParam == undefined) {
     return (
       <div style={{ padding: "1rem" }}>
         <p>
