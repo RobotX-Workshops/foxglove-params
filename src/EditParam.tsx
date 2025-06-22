@@ -3,7 +3,12 @@ import { ParameterDetails, ParameterValueDetails } from "parameter_types";
 import { ReactElement, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
-import { NumericSettings, PanelSettings } from "./panelSettings";
+import {
+  NumericSettings,
+  PanelSettings,
+  buildSettingsTree,
+  settingsActionReducer,
+} from "./panelSettings";
 
 function EditParamPanel({
   context,
@@ -88,6 +93,17 @@ function EditParamPanel({
       context.unsubscribeAll();
     };
   }, [context]);
+
+  useEffect(() => {
+    context.updatePanelSettingsEditor({
+      actionHandler: (action) => {
+        setSettings((prevSettings) =>
+          settingsActionReducer(prevSettings, action),
+        );
+      },
+      nodes: buildSettingsTree(settings),
+    });
+  }, [settings, context]);
 
   if (!settings.selectedNode) {
     return (
