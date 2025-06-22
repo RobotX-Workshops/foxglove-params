@@ -5,14 +5,13 @@ import { stringToBoolean } from "./mappers";
  * @param strArr string[] to check
  * @returns true if strArr only contains booleans, false otherwise
  */
-export const isBooleanArr = (strArr: string[]) => {
-  let bool = true;
-  strArr.forEach((element) => {
-    console.log(stringToBoolean(element));
-    if (stringToBoolean(element) === undefined) {
-      bool = false;
+export const isBooleanArr = (strArr: string[]): boolean => {
+  return strArr.every((element) => {
+    try {
+      stringToBoolean(element);
+      return true;
+    } catch {
+      return false;
     }
   });
-
-  return bool;
 };
