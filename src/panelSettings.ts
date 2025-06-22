@@ -9,7 +9,7 @@ import { ParameterDetails } from "parameter_types";
 
 export type Settings = {
   selectedNode: string;
-  availableNodeNames: Array<string>;
+  params: Map<string, ParameterDetails>;
   selectedParameterName: string;
   selectedNodeAvailableParams: Array<ParameterDetails>;
   inputType: "number" | "slider" | "boolean" | "select" | "text";

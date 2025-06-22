@@ -1,6 +1,9 @@
 import { PanelExtensionContext } from "@foxglove/extension";
-import { ReactElement, useEffect } from "react";
+import { ParameterDetails, ParameterValueDetails } from "parameter_types";
+import { ReactElement, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+
+import { PanelSettings } from "./panelSettings";
 
 function EditParamPanel({
   context,
@@ -8,6 +11,8 @@ function EditParamPanel({
   context: PanelExtensionContext;
 }): ReactElement {
   console.log("Initializing EditParamPanel component.");
+
+  const [settings, setSettings] = useState<PanelSettings>({} as PanelSettings);
 
   useEffect(() => {
     console.log("EditParamPanel effect is running.");
@@ -17,11 +22,48 @@ function EditParamPanel({
 
     // Set up the render handler. This is called by Foxglove when data changes.
     context.onRender = (renderState, done) => {
-      console.log("onRender called!"); // This should now appear in the console.
       if (renderState.parameters) {
-        console.log("Received parameters:", renderState.parameters);
+
+        setSettings((prevSettings: PanelSettings): PanelSettings => {
+          // Update the settings with the new parameters
+          const updatedSettings: PanelSettings = { ...prevSettings };
+          return updatedSettings;
+        });
+        const params: Map<string, ParameterDetails> = new Map<
+          string,
+          ParameterDetails
+        >();
+        // Assuming renderState.parameters is a Map<string, any>
         renderState.parameters.forEach((value, name) => {
-          console.log(`Parameter update: ${name} =`, value);
+          const parts = name.split(".");
+          if (parts.length < 2) {
+            console.warn(
+              `Parameter name "${name}" does not have the expected format "node_name.param_name". Skipping this parameter.`,
+            );
+            return;
+          }
+          const node_name = parts[0]; // Extract node name from parameter name
+          if (!node_name) {
+            console.warn(
+              `Node name is empty in parameter "${name}". Skipping this parameter.`,
+            );
+            return;
+          }
+          const param_name = parts[1]; // Extract parameter name
+          if (
+            !param_name ||
+            param_name.trim() === "" ||
+            typeof param_name !== "string"
+          ) {
+            console.warn(
+              `Parameter name is empty in parameter "${name}". Skipping this parameter.`,
+            );
+            return;
+          }
+          params.set(node_name, {
+            name: param_name,
+            value: value as ParameterValueDetails, // Cast to the expected type
+          });
         });
       } else {
         console.warn(
