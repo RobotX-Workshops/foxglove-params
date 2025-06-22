@@ -9,6 +9,7 @@ import {
   buildSettingsTree,
   settingsActionReducer,
 } from "./panelSettings";
+import { set } from "lodash-es";
 
 function EditParamPanel({
   context,
@@ -102,9 +103,51 @@ function EditParamPanel({
   useEffect(() => {
     context.updatePanelSettingsEditor({
       actionHandler: (action) => {
-        setSettings((prevSettings) =>
-          settingsActionReducer(prevSettings, action),
-        );
+        setSettings((prevSettings) => {
+          if (action.action === "update") {
+            const path = action.payload.path;
+            const value = action.payload.value;
+
+            // Check if the path to the changed setting matches what you expect.
+            // The path is an array of strings representing the keys in your settings tree. [3]
+            // For a path of, your SettingsTree nodes would
+            // be structured like: { nodes: { dataSource: { fields: { inputType:... } } } }
+            const isInputTypePath =
+              path.length === 2 &&
+              path[0] === "dataSource" &&
+              path[1] === "inputType";
+
+            if (isInputTypePath) {
+              // Finally, check if the new value is "number".
+              if (value === "number") {
+                console.log('Input type was set to "number".');
+                let prevSet = prevSettings as any;
+                if (!prevSet.min) {
+                  console.warn(
+                    "No min value set for numeric input type. Defaulting to 0.",
+                  );
+                }
+                if (!prevSet.max) {
+                  console.warn(
+                    "No max value set for numeric input type. Defaulting to 100.",
+                  );
+                }
+                setSettings((prevSett) => {
+                  // Ensure we return a new object with the updated properties.
+                  // This is important for React to detect changes.
+                  return {
+                    ...prevSett,
+                    inputType: "number",
+                    min: prevSet.min ?? -100,
+                    max: prevSet.max ?? 100,
+                    step: prevSet.step ?? 0.1,
+                  };
+                });
+              }
+            }
+          }
+          return settingsActionReducer(prevSettings, action);
+        });
       },
       nodes: buildSettingsTree(settings),
     });
