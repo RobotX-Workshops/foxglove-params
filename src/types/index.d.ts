@@ -24,3 +24,7 @@ declare module "parameter_types" {
     | boolean[]
     | string[];
 }
+
+type PanelState = {
+  settings: PanelSettings;
+};

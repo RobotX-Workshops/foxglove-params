@@ -1,15 +1,16 @@
 import { PanelExtensionContext } from "@foxglove/extension";
-import { ParameterDetails, ParameterValueDetails } from "parameter_types";
+import { ParameterValueDetails } from "parameter_types";
 import { ReactElement, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import {
   NumericSettings,
   PanelSettings,
+  Settings,
   buildSettingsTree,
   settingsActionReducer,
 } from "./panelSettings";
-import { set } from "lodash-es";
+import { parseParameters } from "./utils/mappers";
 
 function EditParamPanel({
   context,
@@ -18,7 +19,42 @@ function EditParamPanel({
 }): ReactElement {
   console.log("Initializing EditParamPanel component.");
 
-  const [settings, setSettings] = useState<PanelSettings>({} as PanelSettings);
+  const [settings, setSettings] = useState<PanelSettings>(() => {
+    // State initialization is unchanged
+    const initialState = context.initialState as
+      | Partial<PanelState>
+      | undefined;
+    if (!initialState?.settings) {
+      console.warn(
+        "No initial state found, using default settings for EditParamPanel",
+      );
+      return {
+        selectedNode: "",
+        selectedParameterName: "",
+        params: new Map<
+          string,
+          Array<{ name: string; value: ParameterValueDetails }>
+        >(),
+        inputType: "number",
+      } as Settings;
+    }
+
+    const partialSettings = initialState.settings as
+      | Partial<PanelSettings>
+      | undefined;
+
+    return {
+      selectedNode: partialSettings?.selectedNode ?? "",
+      selectedParameterName: partialSettings?.selectedParameterName ?? "",
+      inputType: partialSettings?.inputType ?? "number",
+      params:
+        partialSettings?.params ??
+        new Map<
+          string,
+          Array<{ name: string; value: ParameterValueDetails }>
+        >(),
+    };
+  });
 
   useEffect(() => {
     console.log("EditParamPanel effect is running.");
@@ -29,56 +65,17 @@ function EditParamPanel({
     // Set up the render handler. This is called by Foxglove when data changes.
     context.onRender = (renderState, done) => {
       if (renderState.parameters) {
-        const params: Map<string, Array<ParameterDetails>> = new Map<
-          string,
-          Array<ParameterDetails>
-        >();
-        // Assuming renderState.parameters is a Map<string, any>
-        renderState.parameters.forEach((value, name) => {
-          const parts = name.split(".");
-          if (parts.length < 2) {
-            console.warn(
-              `Parameter name "${name}" does not have the expected format "node_name.param_name". Skipping this parameter.`,
-            );
-            return;
-          }
-          const node_name = parts[0]; // Extract node name from parameter name
-          if (!node_name) {
-            console.warn(
-              `Node name is empty in parameter "${name}". Skipping this parameter.`,
-            );
-            return;
-          }
-          const param_name = parts[1]; // Extract parameter name
-          if (
-            !param_name ||
-            param_name.trim() === "" ||
-            typeof param_name !== "string"
-          ) {
-            console.warn(
-              `Parameter name is empty in parameter "${name}". Skipping this parameter.`,
-            );
-            return;
-          }
-          // Initialize the array for this node if it doesn't exist
-          if (!params.has(node_name)) {
-            params.set(node_name, []);
-          }
-          // Add the parameter details to the node's array
-          params.get(node_name)?.push({
-            name: param_name,
-            value: value as ParameterValueDetails, // Cast to the expected type
-          });
+        const incomingParameters = renderState.parameters;
 
-          setSettings((prevSettings: PanelSettings): PanelSettings => {
-            const updatedSettings: PanelSettings = {
-              ...prevSettings,
-              params: new Map(params),
-            };
-            // Update the parameters for this node
-            updatedSettings.params.set(node_name, params.get(node_name) ?? []);
-            return updatedSettings;
-          });
+        const params = parseParameters(incomingParameters);
+
+        setSettings((prevSettings: PanelSettings): PanelSettings => {
+          const updatedSettings: PanelSettings = {
+            ...prevSettings,
+            params: new Map(params),
+          };
+          // Update the parameters for this node
+          return updatedSettings;
         });
       } else {
         console.warn(
@@ -121,7 +118,7 @@ function EditParamPanel({
               // Finally, check if the new value is "number".
               if (value === "number") {
                 console.log('Input type was set to "number".');
-                let prevSet = prevSettings as any;
+                const prevSet = prevSettings as any;
                 if (!prevSet.min) {
                   console.warn(
                     "No min value set for numeric input type. Defaulting to 0.",
