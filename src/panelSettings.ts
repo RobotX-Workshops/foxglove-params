@@ -41,6 +41,11 @@ export function settingsActionReducer(
 
 export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
   console.log("Building settings tree with config:", config);
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, @typescript-eslint/strict-boolean-expressions
+  if (!config || !config.params) {
+    console.warn("Invalid config provided to buildSettingsTree:", config);
+    return {};
+  }
   // Build the settings tree based on the config
   const selectedNodeParams = config.params.get(config.selectedNode) ?? [];
   const inputOptions = [];

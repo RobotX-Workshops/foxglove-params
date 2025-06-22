@@ -28,11 +28,6 @@ function EditParamPanel({
     // Set up the render handler. This is called by Foxglove when data changes.
     context.onRender = (renderState, done) => {
       if (renderState.parameters) {
-        setSettings((prevSettings: PanelSettings): PanelSettings => {
-          // Update the settings with the new parameters
-          const updatedSettings: PanelSettings = { ...prevSettings };
-          return updatedSettings;
-        });
         const params: Map<string, Array<ParameterDetails>> = new Map<
           string,
           Array<ParameterDetails>
@@ -77,7 +72,7 @@ function EditParamPanel({
           setSettings((prevSettings: PanelSettings): PanelSettings => {
             const updatedSettings: PanelSettings = {
               ...prevSettings,
-              params: new Map(prevSettings.params), // Create a shallow copy of the params map
+              params: new Map(params),
             };
             // Update the parameters for this node
             updatedSettings.params.set(node_name, params.get(node_name) ?? []);
