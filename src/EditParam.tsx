@@ -204,7 +204,12 @@ function EditParamPanel({
             );
             context.setParameter(fullParamName, value);
           }}
-          style={{ padding: "0.3rem", margin: "0.3rem" }}
+          style={{
+            padding: "0.3rem",
+            margin: "0.3rem",
+            width: "80%",
+            minWidth: "60px",
+          }}
         />
       </div>
     );
@@ -225,6 +230,7 @@ function EditParamPanel({
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
+          padding: "1rem",
         }}
       >
         <input
@@ -238,7 +244,7 @@ function EditParamPanel({
 
             context.setParameter(fullParamName, value);
           }}
-          style={{ padding: "1rem", flexGrow: 1 }}
+          style={{ padding: "1rem", width: "calc(80% - 40px)" }}
         />
         <div>{numVal.toFixed(2)}</div>
       </div>
@@ -252,15 +258,26 @@ function EditParamPanel({
       return <div>Invalid boolean value</div>;
     }
     return (
-      <input
-        type="checkbox"
-        checked={selectedParam.value}
-        onChange={(e) => {
-          const value = e.target.checked;
-          context.setParameter(fullParamName, value);
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
         }}
-        style={{ padding: "1rem" }}
-      />
+      >
+        <input
+          type="checkbox"
+          checked={selectedParam.value}
+          onChange={(e) => {
+            const value = e.target.checked;
+            context.setParameter(fullParamName, value);
+          }}
+          style={{
+            padding: "1rem",
+          }}
+        />
+      </div>
     );
   }
   if (settings.inputType === "text") {
