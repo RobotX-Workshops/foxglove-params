@@ -1,87 +1,53 @@
-import { ParameterDetails, ParameterValueDetails } from "parameter_types";
+import { ParameterDetails, ParameterValueDetails } from "../types";
 
 /**
- * converts string representation of a boolean to a boolean
- * @param stringValue "true" or "false"
- * @returns true or false
+ * Parses the flat parameter map from Foxglove's renderState into a structured
+ * object grouped by node name.
+ * @param parameters The Map of parameters from `renderState.parameters`.
+ * @returns An object where keys are node names and values are arrays of parameter details.
  */
-export const stringToBoolean = (stringValue: string): boolean => {
-  switch (stringValue.toLowerCase().trim()) {
-    case "true":
-      return true;
-    case "on":
-      return true;
-    case "false":
-      return false;
-    case "off":
-      return false;
-    default:
-      throw new Error(`Invalid boolean string: ${stringValue}`);
-  }
-};
+export function parseParameters(
+  parameters: ReadonlyMap<string, unknown>,
+): Map<string, Array<ParameterDetails>> {
+  const params: Map<string, Array<ParameterDetails>> = new Map<
+    string,
+    Array<ParameterDetails>
+  >();
+  parameters.forEach((value, name) => {
+    const parts = name.split(".");
 
-// Helper to parse the raw parameter data string (replaces extractNodeNames from example)
-export function extractNodeNames(data: string): string[] {
-  if (!data) {
-    return [];
-  }
-  try {
-    // Explicitly type the expected structure from JSON.parse
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const parsed: { parameters?: { name: string }[] } = JSON.parse(data);
-
-    if (!parsed.parameters || !Array.isArray(parsed.parameters)) {
-      return [];
+    // The first part is the node name.
+    const node_name = parts[0];
+    if (!node_name) {
+      console.warn(
+        `Node name is empty in parameter "${name}". Skipping this parameter.`,
+      );
+      return;
     }
 
-    // Safely extract node names
-    const nodeNames = new Set(
-      parsed.parameters
-        .map((p) => p.name.split(".")[0])
-        .filter((namePart): namePart is string => !!namePart),
-    );
-    return Array.from(nodeNames);
-  } catch (e) {
-    console.error("Failed to parse parameter data:", e);
-    return [];
-  }
-}
-
-// Helper to parse parameters for a specific node (replaces extractParametersByNode)
-export function extractParametersForNode(
-  data: string,
-  nodeName: string,
-): ParameterDetails[] {
-  if (!data || !nodeName) {
-    return [];
-  }
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const parsed = JSON.parse(data);
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions, @typescript-eslint/no-unsafe-member-access
-    if (!parsed.parameters || !Array.isArray(parsed.parameters)) {
-      return [];
+    // Check if there are enough parts for a parameter name.
+    if (parts.length < 2) {
+      console.warn(
+        `Parameter name is missing in parameter "${name}". Skipping this parameter.`,
+      );
+      return;
     }
 
-    const nodeParams: ParameterDetails[] = [];
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    parsed.parameters.forEach(
-      (param: { name: string; value: ParameterValueDetails }) => {
-        const paramName = param.name;
-        const nodePrefix = `${nodeName}.`;
-        const paramNameWithoutNode = param.name.replace(nodePrefix, "");
-        const value = param.value;
-        if (paramName.startsWith(nodePrefix)) {
-          nodeParams.push({
-            name: paramNameWithoutNode,
-            value,
-          });
-        }
-      },
-    );
-    return nodeParams;
-  } catch (e) {
-    console.error("Failed to extract parameters for node:", e);
-    return [];
-  }
+    // All parts after the first are joined to form the parameter name.
+    const param_name = parts.slice(1).join(".");
+
+    // Initialize the array for this node if it doesn't exist.
+    if (!params.has(node_name)) {
+      params.set(node_name, []);
+    }
+
+    // Add the parameter details to the node's array.
+    // The non-null assertion (!) is safe because we ensure the array exists.
+    params.get(node_name)!.push({
+      name: param_name,
+      value: value as ParameterValueDetails, // Cast to the expected type
+    });
+  });
+
+  return params;
 }

@@ -1,318 +1,122 @@
-import { PanelExtensionContext, SettingsTreeAction } from "@foxglove/extension";
-import { ParameterDetails } from "parameter_types";
-import {
-  ReactElement,
-  useEffect,
-  useLayoutEffect,
-  useState,
-  useCallback,
-  useRef,
-} from "react";
+import { PanelExtensionContext } from "@foxglove/extension";
+import { ReactElement, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
-// import { LoadingSpinner } from "./components/spinner";
+import { buildSettingsTree, settingsActionReducer } from "./panelSettings";
 import {
   NumericSettings,
   PanelSettings,
+  PanelState,
+  ParameterDetails,
+  ParameterValueDetails,
   Settings,
-  buildSettingsTree,
-  settingsActionReducer,
-} from "./panelSettings";
-import { extractNodeNames, extractParametersForNode } from "./utils/mappers";
-// The mapParamValue function is no longer needed as context.setParameter handles typing.
-// import { mapParamValue } from "./utils/mappers";
-
-type FormState = {
-  currentEditingValue: string | number | boolean | null;
-};
-type PanelState = {
-  settings: Partial<Settings> | undefined;
-};
+} from "./types";
+import { parseParameters } from "./utils/mappers";
 
 function EditParamPanel({
   context,
 }: {
   context: PanelExtensionContext;
 }): ReactElement {
-  const [renderDone, setRenderDone] = useState<(() => void) | undefined>();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isInitialized, setIsInitialized] = useState(false);
+  console.log("Initializing EditParamPanel component.");
+
   const [settings, setSettings] = useState<PanelSettings>(() => {
     // State initialization is unchanged
-    const initialState = context.initialState as PanelState;
-    const partialSettings = initialState.settings ?? {};
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (partialSettings == undefined) {
+    const initialState = context.initialState as
+      | Partial<PanelState>
+      | undefined;
+    if (initialState?.settings == undefined) {
       console.warn(
-        "No initial settings found, using default settings for EditParamPanel",
+        "No initial state found, using default settings for EditParamPanel",
       );
       return {
         selectedNode: "",
-        availableNodeNames: [],
         selectedParameterName: "",
-        selectedNodeAvailableParams: [],
-        allData: {},
+        params: new Map<
+          string,
+          Array<{ name: string; value: ParameterValueDetails }>
+        >(),
         inputType: "number",
-        min: -100,
-        max: 100,
-        step: 0.1,
-      };
+      } as Settings;
     }
-    if (
-      partialSettings.inputType === "number" ||
-      partialSettings.inputType === "slider"
-    ) {
-      const numberSettings = partialSettings as NumericSettings;
-      console.log(
-        "Initializing EditParamPanel with numeric settings",
-        numberSettings,
-      );
-      return {
-        selectedNode: partialSettings.selectedNode ?? "",
-        availableNodeNames: partialSettings.availableNodeNames ?? [],
-        selectedParameterName: partialSettings.selectedParameterName ?? "",
-        selectedNodeAvailableParams:
-          partialSettings.selectedNodeAvailableParams ?? [],
-        allData: partialSettings.allData ?? {},
-        inputType: partialSettings.inputType,
-        min: numberSettings.min ?? 0,
-        max: numberSettings.max ?? 100,
-        step: numberSettings.step ?? 1,
-      };
-    }
-    // For non-numeric types, still provide allData and dummy numeric fields to satisfy PanelSettings
-    console.log(
-      "Initializing EditParamPanel with non-numeric settings",
-      partialSettings,
-    );
+
+    const partialSettings = initialState.settings as
+      | Partial<PanelSettings>
+      | undefined;
+
     return {
-      selectedNode: partialSettings.selectedNode ?? "",
-      availableNodeNames: partialSettings.availableNodeNames ?? [],
-      selectedParameterName: partialSettings.selectedParameterName ?? "",
-      selectedNodeAvailableParams:
-        partialSettings.selectedNodeAvailableParams ?? [],
-      allData: partialSettings.allData ?? {},
-      inputType: partialSettings.inputType ?? "number",
-      min: 0,
-      max: 100,
-      step: 1,
+      selectedNode: partialSettings?.selectedNode ?? "",
+      selectedParameterName: partialSettings?.selectedParameterName ?? "",
+      inputType: partialSettings?.inputType ?? "number",
+      params:
+        partialSettings?.params ??
+        new Map<
+          string,
+          Array<{ name: string; value: ParameterValueDetails }>
+        >(),
     };
   });
 
-  const isInitialMount = useRef(true);
-
-  // Setup WebSocket connection to fetch parameters on startup
   useEffect(() => {
-    // Using the direct WebSocket connection from your example
-    const websocket = new WebSocket("ws://localhost:8765", [
-      "foxglove.websocket.v1",
-    ]);
+    // Tell Foxglove we want to receive parameter updates.
+    context.watch("parameters");
 
-    websocket.onopen = () => {
-      console.log("WebSocket connection established");
-      setIsLoading(true);
-      websocket.send(
-        JSON.stringify({
-          op: "getParameters",
-          parameterNames: [], // Request all parameters
-          id: "fetch-all-parameters-on-startup",
-        }),
-      );
-    };
-    websocket.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
-    websocket.onclose = () => {
-      console.log("WebSocket connection closed");
-    };
-    websocket.onmessage = async (event) => {
-      // Check if the data is a Blob and needs to be read
-      if (event.data instanceof Blob) {
-        // console.debug("Received Blob data from WebSocket");
-      }
-      // Check if it's already a string
-      else if (typeof event.data === "string") {
-        const nodeNames = extractNodeNames(event.data);
-        const allParams = nodeNames.reduce<Record<string, ParameterDetails[]>>(
-          (acc, nodeName) => {
-            acc[nodeName] = extractParametersForNode(
-              event.data as string,
-              nodeName,
-            );
-            return acc;
-          },
-          {},
+    // Set up the render handler. This is called by Foxglove when data changes.
+    context.onRender = (renderState, done) => {
+      if (renderState.parameters) {
+        const incomingParameters = renderState.parameters;
+        const params = parseParameters(incomingParameters);
+
+        setSettings((prevSettings: PanelSettings): PanelSettings => {
+          const updatedSettings: PanelSettings = {
+            ...prevSettings,
+            params: new Map(params as Iterable<[string, ParameterDetails[]]>),
+          };
+          // Update the parameters for this node
+          return updatedSettings;
+        });
+      } else {
+        console.warn(
+          "onRender called, but no parameters found in render state.",
         );
-        setSettings((prev) => ({
-          ...prev,
-          availableNodeNames: Object.keys(allParams),
-          allData: allParams,
-        }));
       }
-      // Handle other unexpected types
-      else {
-        console.error(
-          "Received non-string/non-blob data from WebSocket:",
-          event.data,
-        );
-        return;
-      }
+      done();
     };
-    // No need to setWs(websocket) here as onopen handles it.
+
+    // CRITICAL STEP: Activate the panel's render loop by subscribing.
+    // Even an empty subscription is enough to tell Foxglove that this panel
+    // is ready to receive updates for its "watched" properties.
+    context.subscribe([]);
+
+    // The cleanup function for when the panel is unmounted.
     return () => {
-      if (websocket.readyState === WebSocket.OPEN) {
-        websocket.close();
-      }
+      // Unsubscribe from all topics when the panel is destroyed.
+      context.unsubscribeAll();
     };
-  }, []); // Empty dependency array ensures this runs only once on mount
-
-  const [formState, setFormState] = useState<FormState>({
-    currentEditingValue: null,
-  });
-
-  const settingsActionHandler = useCallback((action: SettingsTreeAction) => {
-    console.debug("Handling settings action:", action);
-    setSettings((prevConfig) => settingsActionReducer(prevConfig, action));
-  }, []);
-
-  useEffect(() => {
-    // Check the ref. If it's the initial mount, we do nothing but flip the flag for next time.
-    // We want the component to render with whatever value is loaded from the saved state.
-    if (isInitialMount.current || isLoading || !isInitialized) {
-      isInitialMount.current = false;
-    } else {
-      // If it's NOT the initial mount, it means the user has actively selected a new
-      // parameter. NOW it's correct to reset the form's editing state.
-      console.log(
-        `Selected parameter changed to ${settings.selectedParameterName}, resetting form state`,
-      );
-      setFormState({ currentEditingValue: null });
-    }
-  }, [settings.selectedParameterName, isLoading, isInitialized]);
-
-  useEffect(() => {
-    context.updatePanelSettingsEditor({
-      actionHandler: settingsActionHandler,
-      nodes: buildSettingsTree(settings),
-    });
-  }, [settings, context, settingsActionHandler]);
+  }, [context]);
 
   useEffect(() => {
     context.saveState({ settings });
   }, [settings, context]);
 
-  // This effect reacts to a node being selected or new data arriving
   useEffect(() => {
-    if (!settings.selectedNode) {
-      return;
-    }
-
-    if (!settings.allData) {
-      console.warn(
-        "No parameter data available yet. Waiting for WebSocket to provide data.",
-      );
-      return;
-    }
-
-    const paramsForNode = settings.allData[settings.selectedNode] ?? [];
-
-    if (paramsForNode.length === 0) {
-      console.warn(
-        `No parameters found for node ${settings.selectedNode}. Please ensure the WebSocket server is providing parameter data.`,
-      );
-      return;
-    }
-
-    let selectedParameterName = "";
-    console.log(
-      `Searching for selected parameter ${settings.selectedParameterName} in node ${settings.selectedNode} parameters:`,
-      paramsForNode,
-    );
-    if (paramsForNode.some((p) => p.name === settings.selectedParameterName)) {
-      console.log(
-        `Keeping selected parameter ${settings.selectedParameterName} for node ${settings.selectedNode}`,
-      );
-      selectedParameterName = settings.selectedParameterName;
-    }
-    console.log(`Available parameters for node ${selectedParameterName}`);
-
-    // When the node changes, we must update the available parameters
-    // AND reset the selected parameter to maintain a consistent state.
-    console.log(
-      `Updating available parameters for node ${settings.selectedNode}`,
-      paramsForNode,
-    );
-    // If the selected parameter is not available for the new node, reset it.
-    setSettings((prev) => ({
-      ...prev,
-      selectedNodeAvailableParams: paramsForNode,
-      // Reset the selected parameter. Default to the first new parameter or an empty string.
-      selectedParameterName,
-    }));
-
-    setFormState({ currentEditingValue: null });
-
-    console.log(
-      `Parameters for node ${settings.selectedNode} updated. Available parameters:`,
-      paramsForNode,
-    );
-    if (paramsForNode.length === 0) {
-      console.warn(
-        `No parameters available for node ${settings.selectedNode}. Please ensure the WebSocket server is providing parameter data.`,
-      );
-      return;
-    }
-    if (!isInitialized) {
-      setIsInitialized(true);
-      console.log("EditParamPanel initialized with settings:", settings);
-    }
-
-    if (isLoading) {
-      console.log("EditParamPanel is now initialized");
-      setIsLoading(false);
-    }
-  }, [settings.selectedNode, settings.allData, settings.selectedParameterName]);
-
-  useLayoutEffect(() => {
-    context.onRender = (_renderState, done) => {
-      setRenderDone(() => done);
-    };
-  }, [context]);
-
-  useEffect(() => {
-    renderDone?.();
-  }, [renderDone]);
-
-  const selectedNodeParamsValue = settings.selectedNodeAvailableParams.find(
-    (x) => x.name === settings.selectedParameterName,
-  )?.value;
-
-  if (isLoading) {
-    return <div style={{ padding: "1rem" }}>Loading params data...</div>;
-    // return (
-    //   <div style={{ padding: "1rem" }}>
-    //     <LoadingSpinner />
-    //   </div>
-    // );
-  }
-
-  if (!settings.allData || Object.keys(settings.allData).length === 0) {
-    return (
-      <div style={{ padding: "1rem" }}>
-        <p>
-          Could not load parameters. Please ensure the WebSocket server is
-          running and providing parameter data.
-        </p>
-      </div>
-    );
-  }
+    context.updatePanelSettingsEditor({
+      actionHandler: (action) => {
+        setSettings((prevSettings) =>
+          settingsActionReducer(prevSettings, action),
+        );
+      },
+      nodes: buildSettingsTree(settings),
+    });
+  }, [settings, context]);
 
   if (!settings.selectedNode) {
     return (
       <div style={{ padding: "1rem" }}>
         <p>
-          Please select a node to view and edit its parameters. The available
-          nodes will be populated once the WebSocket connection is established.
+          Please select a node in the settings panel to view and edit its
+          parameters. The available nodes will be populated once the WebSocket
+          connection is established.
         </p>
       </div>
     );
@@ -329,27 +133,55 @@ function EditParamPanel({
   }
 
   // --- RENDER LOGIC WITH `context.setParameter` ---
+  // Check that the .get method exists on the params Map
+  if (
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, @typescript-eslint/strict-boolean-expressions
+    !settings.params ||
+    settings.params.size === 0 ||
+    typeof settings.params.get !== "function"
+  ) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <p>No parameters available for the selected node.</p>
+      </div>
+    );
+  }
+
+  const nodeParams: Array<ParameterDetails> =
+    settings.params.get(settings.selectedNode) ?? [];
+
+  if (!Array.isArray(nodeParams) || nodeParams.length === 0) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <p>
+          No parameters found for the selected node: {settings.selectedNode}
+        </p>
+      </div>
+    );
+  }
 
   const fullParamName = `${settings.selectedNode}.${settings.selectedParameterName}`;
 
+  const selectedParam = nodeParams.find(
+    (param) => param.name === settings.selectedParameterName,
+  );
+
+  if (selectedParam == undefined) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <p>
+          Parameter &quot;{settings.selectedParameterName}&quot; not found for
+          {settings.selectedNode}.
+        </p>
+      </div>
+    );
+  }
+
   if (settings.inputType === "number") {
     const numberSettings = settings as NumericSettings;
-    console.log(
-      `Rendering number input for parameter ${fullParamName} with settings:`,
-      numberSettings,
-    );
-    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-    console.log(`Current editing value: ${formState.currentEditingValue}`);
-    console.log(
-      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-      `Selected node parameter value ${selectedNodeParamsValue} : ${selectedNodeParamsValue} (double) or ${selectedNodeParamsValue} (integer)`,
-    );
-    const numVal = Number(
-      formState.currentEditingValue ?? selectedNodeParamsValue,
-    );
-    console.log(
-      `Rendering number input for parameter ${fullParamName} with value ${numVal}`,
-    );
+
+    const numVal = Number(selectedParam.value);
+
     return (
       <div
         style={{
@@ -370,24 +202,25 @@ function EditParamPanel({
             console.log(
               `Setting parameter ${fullParamName} to ${value} via context.setParameter`,
             );
-            // Use context.setParameter instead of callService
             context.setParameter(fullParamName, value);
-            setFormState({ currentEditingValue: value });
           }}
-          style={{ padding: "0.3rem", margin: "0.3rem" }}
+          style={{
+            padding: "0.3rem",
+            margin: "0.3rem",
+            width: "80%",
+            minWidth: "60px",
+          }}
         />
       </div>
     );
   }
   if (settings.inputType === "slider") {
-    const numVal = Number(
-      formState.currentEditingValue ?? selectedNodeParamsValue,
-    );
-    if (typeof numVal !== "number") {
+    const numVal = Number(selectedParam.value);
+    if (isNaN(numVal)) {
       console.warn(
-        `Expected number value for parameter ${fullParamName}, but got: ${numVal}`,
+        `Expected number value for parameter ${fullParamName}, but got: ${String(selectedParam.value)}`,
       );
-      return <div>Invalid boolean value</div>;
+      return <div>Invalid number value</div>;
     }
     const sliderSettings = settings as NumericSettings;
     return (
@@ -397,6 +230,7 @@ function EditParamPanel({
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
+          padding: "1rem",
         }}
       >
         <input
@@ -407,57 +241,60 @@ function EditParamPanel({
           value={numVal}
           onChange={(e) => {
             const value = parseFloat(e.target.value);
-            // Use context.setParameter instead of callService
-            console.log(
-              `Setting parameter ${fullParamName} to ${value} via context.setParameter`,
-            );
+
             context.setParameter(fullParamName, value);
-            setFormState({ currentEditingValue: value });
           }}
-          style={{ padding: "1rem", flexGrow: 1 }}
+          style={{ padding: "1rem", width: "calc(80% - 40px)" }}
         />
         <div>{numVal.toFixed(2)}</div>
       </div>
     );
   }
   if (settings.inputType === "boolean") {
-    const boolVal = formState.currentEditingValue ?? selectedNodeParamsValue;
-    if (typeof boolVal !== "boolean") {
+    if (typeof selectedParam.value !== "boolean") {
       console.warn(
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        `Expected boolean value for parameter ${fullParamName}, but got: ${boolVal}`,
+        `Expected boolean value for parameter ${fullParamName}, but got: ${String(selectedParam.value)}`,
       );
       return <div>Invalid boolean value</div>;
     }
     return (
-      <input
-        type="checkbox"
-        checked={boolVal}
-        onChange={(e) => {
-          const value = e.target.checked;
-          console.log(
-            // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-            `Setting parameter ${fullParamName} to ${value} via context.setParameter`,
-          );
-          // Use context.setParameter instead of callService
-          context.setParameter(fullParamName, value);
-          setFormState({ currentEditingValue: value });
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
         }}
-        style={{ padding: "1rem" }}
-      />
+      >
+        <input
+          type="checkbox"
+          checked={selectedParam.value}
+          onChange={(e) => {
+            const value = e.target.checked;
+            context.setParameter(fullParamName, value);
+          }}
+          style={{
+            padding: "1rem",
+          }}
+        />
+      </div>
     );
   }
   if (settings.inputType === "text") {
-    const stringVal = String(formState.currentEditingValue);
+    if (typeof selectedParam.value !== "string") {
+      console.warn(
+        `Expected string value for parameter ${fullParamName}, but got: ${String(selectedParam.value)}`,
+      );
+      return <div>Invalid text value</div>;
+    }
     return (
       <input
         type="text"
-        value={stringVal}
+        value={selectedParam.value}
         onChange={(e) => {
           const value = e.target.value;
           // Use context.setParameter instead of callService
           context.setParameter(fullParamName, value);
-          setFormState({ currentEditingValue: value });
         }}
         style={{ padding: "1rem" }}
       />
