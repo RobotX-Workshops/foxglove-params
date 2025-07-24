@@ -2,32 +2,31 @@
 
 An extension for Foxglove for conveniently adjusting paramameters of different types.
 
+# Useage
+
+Select the node you want to edit parameters for in the top left dropdown, then select the parameter you want to edit in the second dropdown. The third dropdown will show the type of the parameter, and the input field will allow you to change the value of the parameter. The value will be set on change.
+
 ![panel](docs/images/foxglove-param-editor-panel.png)
+
+Arrage the panel however you like and use multiple panels together.
 ![setup](docs/images/foxglove-param-editor.png)
+
+# Features
+
+- **Improved Performance**: Utilizes the existing Foxglove bridge instead of requiring an additional rosbridge server, reducing overall resource usage.
+- **Persistent Selections**: Unlike the native parameter editor, your previously selected node and parameter persist between panel openings, eliminating the need to reselect each time.
+- **Flexible Layout**: Supports multiple panels that can be arranged according to your workflow needs.
+- **Real-time Updates**: Parameter changes take effect immediately, allowing for quick testing and configuration.
+- **User-Friendly**: Adjust parameters with UI components such as sliders, checkboxes, and numeric inputs, making it easy to work with different parameter types.
+
+# Todo
+- [ ] Add support for text parameters
+- [ ] Add support for array parameters
 
 ## Installation
 
-This plugin relies on the `/rosapi/nodes` service to be available on the robot in order to build a list of running nodes.
-This can either be done by making sure [rosbridge_server](https://github.com/RobotWebTools/rosbridge_suite/blob/ros2/rosbridge_server/launch/rosbridge_websocket_launch.xml) is running:
-
-```ros2 launch rosbridge_server rosbridge_websocket_launch.xml```
-
-or solely the [rosapi node](https://github.com/RobotWebTools/rosbridge_suite/blob/ros2/rosapi/scripts/rosapi_node):
-
-```ros2 run rosapi rosapi_node```
-
-Use in a launch file:
-```python
-    rosbridge_launch = IncludeLaunchDescription(
-        AnyLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("rosbridge_server"),
-                "launch",
-                "rosbridge_websocket_launch.xml",
-            )
-        ),
-    )
-```    
+1. Clone this repository to your local machine.
+2. Navigate to the project directory.
 
 ## Compile from source
 
@@ -72,6 +71,14 @@ This command will package the extension into a `.foxe` file in the local directo
 You can publish the extension to the public registry or privately for your organization.
 
 See documentation here: https://docs.foxglove.dev/docs/visualization/extensions/publish/#packaging-your-extension
+
+## Inspirations
+
+This project took ideas and inspiration and improved upon the following sources:
+
+- https://github.com/danclapp4/ros2-parameter-extension
+- https://github.com/nobleo/ros2-parameter-extension
+- https://github.com/ZealousGinger/foxglove-parameter-slider
 
 # Other resources 
 
