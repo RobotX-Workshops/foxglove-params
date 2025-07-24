@@ -2,7 +2,7 @@
 
 An extension for Foxglove for conveniently viewing and adjusting paramameters of different types.
 
-# Usage
+## Usage
 
 Select the node you want to edit parameters for in the top left dropdown, then select the parameter you want to edit in the second dropdown. The third dropdown will show the type of the parameter, and the input field will allow you to change the value of the parameter. The value will be set on change.
 
@@ -13,7 +13,7 @@ Select the node you want to edit parameters for in the top left dropdown, then s
 
 The panel can be arranged however you like, and you can use multiple panels together for improved workflow.
 
-# Features
+## Features
 
 - **Improved Performance**: Utilizes the existing Foxglove bridge instead of requiring an additional rosbridge server, reducing overall resource usage.
 - **Persistent Selections**: Unlike the native parameter editor, your previously selected node and parameter persist between panel openings, eliminating the need to reselect each time.
@@ -21,7 +21,7 @@ The panel can be arranged however you like, and you can use multiple panels toge
 - **Real-time Updates**: Parameter changes take effect immediately, allowing for quick testing and configuration.
 - **User-Friendly**: Adjust parameters with UI components such as sliders, checkboxes, and numeric inputs, making it easy to work with different parameter types.
 
-# Todo
+## Todo
 - [ ] Add support for text parameters
 - [ ] Add support for array parameters
 
@@ -84,6 +84,6 @@ This project took ideas and inspiration and improved upon the following sources:
 - https://github.com/nobleo/ros2-parameter-extension
 - https://github.com/ZealousGinger/foxglove-parameter-slider
 
-# Other resources 
+## Other resources 
 
 - https://docs.foxglove.dev/extension-api/type-aliases/ExtensionPanelRegistration
