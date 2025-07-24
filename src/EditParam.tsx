@@ -1,5 +1,5 @@
 import { PanelExtensionContext } from "@foxglove/extension";
-import { ReactElement, useEffect, useState } from "react";
+import { ReactElement, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { buildSettingsTree, settingsActionReducer } from "./panelSettings";
@@ -20,8 +20,9 @@ function EditParamPanel({
 }): ReactElement {
   console.log("Initializing EditParamPanel component.");
 
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const [settings, setSettings] = useState<PanelSettings>(() => {
-    // State initialization is unchanged
     const initialState = context.initialState as
       | Partial<PanelState>
       | undefined;
@@ -56,6 +57,23 @@ function EditParamPanel({
         >(),
     };
   });
+
+  // Debounced parameter update function
+  const updateParameterWithDelay = (
+    paramName: string,
+    value: number | string | boolean,
+  ) => {
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+
+    updateTimeoutRef.current = setTimeout(() => {
+      console.log(
+        `Setting parameter ${paramName} to ${String(value)} via context.setParameter`,
+      );
+      context.setParameter(paramName, value);
+    }, 150); // 150ms delay to prevent overwhelming the system
+  };
 
   useEffect(() => {
     // Tell Foxglove we want to receive parameter updates.
@@ -202,7 +220,7 @@ function EditParamPanel({
             console.log(
               `Setting parameter ${fullParamName} to ${value} via context.setParameter`,
             );
-            context.setParameter(fullParamName, value);
+            updateParameterWithDelay(fullParamName, value);
           }}
           style={{
             padding: "0.3rem",
@@ -242,7 +260,7 @@ function EditParamPanel({
           onChange={(e) => {
             const value = parseFloat(e.target.value);
 
-            context.setParameter(fullParamName, value);
+            updateParameterWithDelay(fullParamName, value);
           }}
           style={{ padding: "1rem", width: "calc(80% - 40px)" }}
         />
@@ -271,7 +289,7 @@ function EditParamPanel({
           checked={selectedParam.value}
           onChange={(e) => {
             const value = e.target.checked;
-            context.setParameter(fullParamName, value);
+            updateParameterWithDelay(fullParamName, value);
           }}
           style={{
             padding: "1rem",
