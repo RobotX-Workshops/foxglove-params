@@ -1,6 +1,6 @@
 # 🦊 Foxglove Parameter Editor
 
-An extension for Foxglove for conveniently adjusting paramameters of different types.
+An extension for Foxglove for conveniently viewing and adjusting paramameters of different types.
 
 # Usage
 
@@ -29,6 +29,8 @@ The panel can be arranged however you like, and you can use multiple panels toge
 
 1. Clone this repository to your local machine.
 2. Navigate to the project directory.
+
+**Important**: For parameter adjustments to work properly, the target ROS nodes must have parameter change callbacks implemented. Without these callbacks, the nodes will not respond to parameter updates sent by this extension. [See the docs](https://docs.ros.org/en/rolling/Tutorials/Intermediate/Monitoring-For-Parameter-Changes-CPP.html) for more information on how to implement parameter change callbacks in your ROS nodes.
 
 ## Compile from source
 
