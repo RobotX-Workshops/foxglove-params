@@ -1,10 +1,10 @@
 {
   "name": "foxglove-edit-params",
   "displayName": "foxglove-edit-params",
-  "description": "",
+  "description": "A Foxglove extension for real-time ROS parameter editing with sliders, number inputs, checkboxes, and text fields. Provides immediate feedback and persistent selections for efficient parameter tuning.",
   "publisher": "RobotX Workshops",
   "homepage": "https://robotxworkshops.tech/",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "UNLICENSED",
   "main": "./dist/extension.js",
   "keywords": [],
