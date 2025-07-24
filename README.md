@@ -1,15 +1,17 @@
-# Foxglove Parameter Editor
+# 🦊 Foxglove Parameter Editor
 
 An extension for Foxglove for conveniently adjusting paramameters of different types.
 
-# Useage
+# Usage
 
 Select the node you want to edit parameters for in the top left dropdown, then select the parameter you want to edit in the second dropdown. The third dropdown will show the type of the parameter, and the input field will allow you to change the value of the parameter. The value will be set on change.
 
-![panel](docs/images/foxglove-param-editor-panel.png)
+<div style="text-align: center;">
+    <img src="docs/images/foxglove-param-editor-panel.png" alt="Parameter editor panel" width="49%" style="display: inline-block;" />
+    <img src="docs/images/foxglove-param-editor.png" alt="Parameter editor setup" width="49%" style="display: inline-block;" />
+</div>
 
-Arrage the panel however you like and use multiple panels together.
-![setup](docs/images/foxglove-param-editor.png)
+The panel can be arranged however you like, and you can use multiple panels together for improved workflow.
 
 # Features
 
