@@ -2,6 +2,9 @@
 
 An extension for Foxglove for conveniently viewing and adjusting paramameters of different types.
 
+## 📹 Demo
+[![Foxglove Parameter Editor Demo](https://img.youtube.com/vi/xyxCkcdoFB4/0.jpg)](https://youtu.be/xyxCkcdoFB4)
+
 ## Features
 
 - **Improved Performance**: Utilizes the existing Foxglove bridge instead of requiring an additional rosbridge server, reducing overall resource usage.
