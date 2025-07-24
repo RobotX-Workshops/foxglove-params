@@ -15,8 +15,11 @@ An extension for Foxglove for conveniently viewing and adjusting paramameters of
 
 ## 📦 Installation
 
-1. Clone this repository to your local machine.
-2. Navigate to the project directory.
+1. Download the latest `.foxe` file from the [Releases](https://github.com/RobotX-Workshops/foxglove-params/releases) page
+2. Open Foxglove Studio
+3. Go to Extensions → Install Extension
+4. Select the downloaded `.foxe` file
+5. Add the "Parameter Editor" panel to your layout
 
 **Important**: For parameter adjustments to work properly, the target ROS nodes must have parameter change callbacks implemented. Without these callbacks, the nodes will not respond to parameter updates sent by this extension. [See the docs](https://docs.ros.org/en/rolling/Tutorials/Intermediate/Monitoring-For-Parameter-Changes-CPP.html) for more information on how to implement parameter change callbacks in your ROS nodes.
 
