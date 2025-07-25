@@ -13,12 +13,21 @@ import {
 } from "./types";
 import { parseParameters } from "./utils/mappers";
 
+const isDebugEnabled = false; // Set to true to enable debug logging
+
+function debugLog(message: string, ...params: unknown[]): void {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (isDebugEnabled) {
+    console.debug(`[EditParamPanel] ${message}`, params);
+  }
+}
+
 function EditParamPanel({
   context,
 }: {
   context: PanelExtensionContext;
 }): ReactElement {
-  console.log("Initializing EditParamPanel component.");
+  debugLog("Initializing EditParamPanel component.");
 
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -68,19 +77,22 @@ function EditParamPanel({
     }
 
     updateTimeoutRef.current = setTimeout(() => {
-      console.log(
-        `Setting parameter ${paramName} to ${String(value)} via context.setParameter`,
+      debugLog(
+        `After timeout of 150ms Setting parameter ${paramName} to ${String(value)} via context.setParameter`,
       );
       context.setParameter(paramName, value);
     }, 150); // 150ms delay to prevent overwhelming the system
   };
 
   useEffect(() => {
+    debugLog("Setting up EditParamPanel component.");
+
     // Tell Foxglove we want to receive parameter updates.
     context.watch("parameters");
 
     // Set up the render handler. This is called by Foxglove when data changes.
     context.onRender = (renderState, done) => {
+      debugLog("onRender called with renderState:", renderState);
       if (renderState.parameters) {
         const incomingParameters = renderState.parameters;
         const params = parseParameters(incomingParameters);
@@ -108,18 +120,19 @@ function EditParamPanel({
 
     // The cleanup function for when the panel is unmounted.
     return () => {
+      debugLog("Cleaning up EditParamPanel component.");
       // Unsubscribe from all topics when the panel is destroyed.
       context.unsubscribeAll();
     };
   }, [context]);
 
   useEffect(() => {
-    context.saveState({ settings });
-  }, [settings, context]);
+    debugLog("Saving settings state to context.");
 
-  useEffect(() => {
+    context.saveState({ settings });
     context.updatePanelSettingsEditor({
       actionHandler: (action) => {
+        debugLog("Action received in EditParamPanel:", action);
         setSettings((prevSettings) =>
           settingsActionReducer(prevSettings, action),
         );
@@ -217,7 +230,7 @@ function EditParamPanel({
           value={numVal}
           onChange={(e) => {
             const value = parseFloat(e.target.value);
-            console.log(
+            debugLog(
               `Setting parameter ${fullParamName} to ${value} via context.setParameter`,
             );
             updateParameterWithDelay(fullParamName, value);
