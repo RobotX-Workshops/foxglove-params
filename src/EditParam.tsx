@@ -13,12 +13,12 @@ import {
 } from "./types";
 import { parseParameters } from "./utils/mappers";
 
-const isDebugEnabled = false; // Set to true to enable debug logging
+const isDebugEnabled = true; // Set to true to enable debug logging
 
 function debugLog(message: string, ...params: unknown[]): void {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (isDebugEnabled) {
-    console.debug(`[EditParamPanel] ${message}`, params);
+    console.log(`[EditParamPanel] ${message}`, params);
   }
 }
 
@@ -128,8 +128,10 @@ function EditParamPanel({
 
   useEffect(() => {
     debugLog("Saving settings state to context.");
-
     context.saveState({ settings });
+  }, [settings, context]);
+
+  useEffect(() => {
     context.updatePanelSettingsEditor({
       actionHandler: (action) => {
         debugLog("Action received in EditParamPanel:", action);
