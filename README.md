@@ -81,7 +81,8 @@ You can publish the extension to the public registry or privately for your organ
 See documentation here: https://docs.foxglove.dev/docs/visualization/extensions/publish/#packaging-your-extension
 
 ## 📝 Todo
-- [ ] Add support for text parameters
+
+- [ ] Add select/dropdown input type for string enumeration parameters
 - [ ] Add support for array parameters
 
 ## 💡 Inspirations
