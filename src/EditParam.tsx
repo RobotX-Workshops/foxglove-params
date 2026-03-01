@@ -9,6 +9,7 @@ import {
   PanelState,
   ParameterDetails,
   ParameterValueDetails,
+  SelectSettings,
   Settings,
 } from "./types";
 import { parseParameters } from "./utils/mappers";
@@ -300,7 +301,43 @@ function EditParamPanel({
       />
     );
   }
-  return <div>Unknown input type</div>;
+  // settings.inputType === "select" (the only remaining case)
+  if (typeof selectedParam.value !== "string") {
+    console.warn(
+      `Expected string value for parameter ${fullParamName}, but got: ${String(selectedParam.value)}`,
+    );
+    return <div>Invalid string value</div>;
+  }
+  const selectSettings = settings as SelectSettings;
+  const options = selectSettings.selectOptions ?? [];
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <select
+        value={selectedParam.value}
+        onChange={(e) => {
+          context.setParameter(fullParamName, e.target.value);
+        }}
+        style={{
+          padding: "0.3rem",
+          margin: "0.3rem",
+          width: "80%",
+        }}
+      >
+        {options.map((option, i) => (
+          <option key={i} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
 }
 
 export function initEditParamPanel(context: PanelExtensionContext): () => void {
