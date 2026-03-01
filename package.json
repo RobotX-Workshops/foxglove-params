@@ -1,13 +1,13 @@
 {
   "name": "foxglove-edit-params",
-  "displayName": "foxglove-edit-params",
-  "description": "",
+  "displayName": "Parameter Editor",
+  "description": "View and adjust ROS 2 parameters using sliders, checkboxes, dropdowns, and numeric inputs — with persistent selections and real-time updates via the Foxglove bridge.",
   "publisher": "RobotX Workshops",
-  "homepage": "https://robotxworkshops.tech/",
+  "homepage": "https://github.com/RobotX-Workshops/foxglove-params",
   "version": "1.0.0",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "main": "./dist/extension.js",
-  "keywords": [],
+  "keywords": ["ros2", "ros", "parameters", "parameter-editor"],
   "scripts": {
     "build": "foxglove-extension build",
     "foxglove:prepublish": "foxglove-extension build --mode production",
