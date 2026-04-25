@@ -41,7 +41,8 @@ export function settingsActionReducer(
         if (!Array.isArray(selectDraft.selectOptions)) {
           selectDraft.selectOptions = [];
         }
-        const newAmount = Math.max(0, Math.floor(Number(value)));
+        const parsed = Math.floor(Number(value));
+        const newAmount = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
         if (newAmount > selectDraft.selectOptions.length) {
           for (let i = selectDraft.selectOptions.length; i < newAmount; i++) {
             selectDraft.selectOptions.push("");
