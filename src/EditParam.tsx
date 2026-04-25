@@ -2,6 +2,7 @@ import { PanelExtensionContext } from "@foxglove/extension";
 import { ReactElement, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
+import { DefaultNumberParams } from "./constants/defaultValues";
 import { buildSettingsTree, settingsActionReducer } from "./panelSettings";
 import {
   NumericSettings,
@@ -44,6 +45,7 @@ function EditParamPanel({
     const partialSettings = initialState.settings as
       | Partial<PanelSettings>
       | undefined;
+    const numericPartial = partialSettings as Partial<NumericSettings> | undefined;
 
     return {
       selectedNode: partialSettings?.selectedNode ?? "",
@@ -55,7 +57,10 @@ function EditParamPanel({
           string,
           Array<{ name: string; value: ParameterValueDetails }>
         >(),
-    };
+      ...(numericPartial?.min != undefined ? { min: numericPartial.min } : {}),
+      ...(numericPartial?.max != undefined ? { max: numericPartial.max } : {}),
+      ...(numericPartial?.step != undefined ? { step: numericPartial.step } : {}),
+    } as PanelSettings;
   });
 
   useEffect(() => {
@@ -179,7 +184,7 @@ function EditParamPanel({
   }
 
   if (settings.inputType === "number") {
-    const numberSettings = settings as NumericSettings;
+    const numberSettings = { ...DefaultNumberParams, ...settings } as NumericSettings;
 
     const numVal = Number(selectedParam.value);
 
@@ -223,7 +228,7 @@ function EditParamPanel({
       );
       return <div>Invalid number value</div>;
     }
-    const sliderSettings = settings as NumericSettings;
+    const sliderSettings = { ...DefaultNumberParams, ...settings } as NumericSettings;
     return (
       <div
         style={{
