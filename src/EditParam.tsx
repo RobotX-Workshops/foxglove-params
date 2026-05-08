@@ -151,6 +151,12 @@ function SliderInput({
         onPointerUp={() => {
           draggingRef.current = false;
         }}
+        onPointerCancel={() => {
+          draggingRef.current = false;
+        }}
+        onLostPointerCapture={() => {
+          draggingRef.current = false;
+        }}
         onChange={(e) => {
           const v = parseFloat(e.target.value);
           setLocalValue(v);
@@ -307,6 +313,12 @@ function EditParamPanel({
 
   if (settings.inputType === "number") {
     const numVal = Number(selectedParam.value);
+    if (isNaN(numVal)) {
+      console.warn(
+        `Expected number value for parameter ${fullParamName}, but got: ${String(selectedParam.value)}`,
+      );
+      return <div>Invalid number value</div>;
+    }
     return (
       <NumberInput
         key={fullParamName}
@@ -380,8 +392,8 @@ function EditParamPanel({
       />
     );
   }
-  // buildSettingsTree exposes inputType values (e.g. "number_array") that aren't in the
-  // PanelSettings union, so an explicit runtime gate is needed despite TS thinking otherwise.
+  // Defensive runtime gate: legacy panel state persisted before the dropdown was tightened
+  // could still carry an inputType outside the current PanelSettings union.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (settings.inputType === "select") {
     if (typeof selectedParam.value !== "string") {

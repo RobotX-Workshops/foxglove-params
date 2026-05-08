@@ -110,40 +110,6 @@ export function buildSettingsTree(
       value: "slider",
     });
   }
-  if (
-    selectedNodeParams.find(
-      (param) =>
-        Array.isArray(param.value) && typeof param.value[0] === "number",
-    )
-  ) {
-    inputOptions.push({
-      label: "Number Array",
-      value: "number_array",
-    });
-  }
-  if (
-    selectedNodeParams.find(
-      (param) =>
-        Array.isArray(param.value) && typeof param.value[0] === "boolean",
-    )
-  ) {
-    inputOptions.push({
-      label: "Boolean Array",
-      value: "boolean_array",
-    });
-  }
-  if (
-    selectedNodeParams.find(
-      (param) =>
-        Array.isArray(param.value) && typeof param.value[0] === "string",
-    )
-  ) {
-    inputOptions.push({
-      label: "String Array",
-      value: "string_array",
-    });
-  }
-
   const dataSourceFields: SettingsTreeFields = {
     selectedNode: {
       label: "Node",
