@@ -22,6 +22,51 @@ export function settingsActionReducer(
   return produce(prevConfig, (draft) => {
     if (action.action === "update") {
       const { path, value } = action.payload;
+      const field = path[path.length - 1];
+
+      // Initialize selectOptions when switching to "select" input type
+      if (field === "inputType" && value === "select") {
+        const selectDraft = draft as SelectSettings;
+        if (!Array.isArray(selectDraft.selectOptions)) {
+          selectDraft.selectOptions = [];
+          selectDraft.selectOptionsAmount = 0;
+        }
+        selectDraft.inputType = "select";
+        return;
+      }
+
+      // Resize selectOptions array when selectOptionsAmount changes
+      if (field === "selectOptionsAmount") {
+        const selectDraft = draft as SelectSettings;
+        if (!Array.isArray(selectDraft.selectOptions)) {
+          selectDraft.selectOptions = [];
+        }
+        const parsed = Math.floor(Number(value));
+        const newAmount = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+        if (newAmount > selectDraft.selectOptions.length) {
+          for (let i = selectDraft.selectOptions.length; i < newAmount; i++) {
+            selectDraft.selectOptions.push("");
+          }
+        } else {
+          selectDraft.selectOptions.splice(newAmount);
+        }
+        selectDraft.selectOptionsAmount = newAmount;
+        return;
+      }
+
+      // Map selectOption{i} field updates into the selectOptions array
+      const selectOptionMatch =
+        typeof field === "string" ? /^selectOption(\d+)$/.exec(field) : null;
+      if (selectOptionMatch) {
+        const index = parseInt(selectOptionMatch[1]!, 10);
+        const selectDraft = draft as SelectSettings;
+        if (!Array.isArray(selectDraft.selectOptions)) {
+          selectDraft.selectOptions = [];
+        }
+        selectDraft.selectOptions[index] = String(value);
+        return;
+      }
+
       _.set(draft, path.slice(1), value);
     }
   });
@@ -192,17 +237,18 @@ export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
   if (config.inputType === "select") {
     // eslint-disable-next-line no-var
     var selectSettings = config as SelectSettings;
+    const selectOptions = selectSettings.selectOptions ?? [];
     dataSourceFields["selectOptionsAmount"] = {
       label: "Select Options Amount",
       input: "number",
-      value: selectSettings.selectOptions.length,
+      value: selectOptions.length,
     };
 
-    for (let i = 0; i < selectSettings.selectOptions.length; i++) {
+    for (let i = 0; i < selectOptions.length; i++) {
       dataSourceFields[`selectOption${i}`] = {
         label: `Select Option ${i + 1}`,
         input: "string",
-        value: selectSettings.selectOptions[i],
+        value: selectOptions[i],
         placeholder: `Option ${i + 1}`,
       };
     }

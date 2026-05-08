@@ -23,7 +23,7 @@ export type ParameterValueDetails =
   | boolean[]
   | string[];
 
-type PanelState = {
+export type PanelState = {
   settings: PanelSettings;
 };
 
@@ -41,8 +41,8 @@ export type NumericSettings = {
 } & Settings;
 
 export type SelectSettings = {
-  selectOptions: Array<string>;
-  selectOptionsAmount: number;
+  selectOptions?: Array<string>;
+  selectOptionsAmount?: number;
 } & Settings;
 
 export type PanelSettings = Settings | NumericSettings | SelectSettings;

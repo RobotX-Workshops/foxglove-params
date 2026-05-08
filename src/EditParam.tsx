@@ -10,6 +10,7 @@ import {
   PanelState,
   ParameterDetails,
   ParameterValueDetails,
+  SelectSettings,
   Settings,
 } from "./types";
 import { parseParameters } from "./utils/mappers";
@@ -303,6 +304,47 @@ function EditParamPanel({
         }}
         style={{ padding: "1rem" }}
       />
+    );
+  }
+  // buildSettingsTree exposes inputType values (e.g. "number_array") that aren't in the
+  // PanelSettings union, so an explicit runtime gate is needed despite TS thinking otherwise.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (settings.inputType === "select") {
+    if (typeof selectedParam.value !== "string") {
+      console.warn(
+        `Expected string value for parameter ${fullParamName}, but got: ${String(selectedParam.value)}`,
+      );
+      return <div>Invalid string value</div>;
+    }
+    const selectSettings = settings as SelectSettings;
+    const options = selectSettings.selectOptions ?? [];
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <select
+          value={selectedParam.value}
+          onChange={(e) => {
+            context.setParameter(fullParamName, e.target.value);
+          }}
+          style={{
+            padding: "0.3rem",
+            margin: "0.3rem",
+            width: "80%",
+          }}
+        >
+          {options.map((option, i) => (
+            <option key={i} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </div>
     );
   }
   return <div>Unknown input type</div>;
