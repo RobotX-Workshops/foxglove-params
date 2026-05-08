@@ -13,6 +13,7 @@ import {
   NumericSettings,
   SelectSettings,
   ParameterDetails,
+  ParamsByNode,
 } from "./types";
 
 export function settingsActionReducer(
@@ -72,28 +73,12 @@ export function settingsActionReducer(
   });
 }
 
-export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
-  console.log("Building settings tree with config:", config);
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, @typescript-eslint/strict-boolean-expressions
-  if (!config || !config.params) {
-    console.warn("Invalid config provided to buildSettingsTree:", config);
-    return {};
-  }
-
-  // Check that the params Map has the get method
-  if (
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, @typescript-eslint/strict-boolean-expressions
-    !config.params ||
-    typeof config.params.get !== "function" ||
-    config.params.size === 0
-  ) {
-    console.warn("Invalid params Map in config:", config.params);
-    return {};
-  }
-
-  // Build the settings tree based on the config
+export function buildSettingsTree(
+  config: PanelSettings,
+  params: ParamsByNode,
+): SettingsTreeNodes {
   const selectedNodeParams: Array<ParameterDetails> =
-    config.params.get(config.selectedNode) ?? [];
+    params.get(config.selectedNode) ?? [];
   const inputOptions = [];
 
   if (
@@ -164,7 +149,7 @@ export function buildSettingsTree(config: PanelSettings): SettingsTreeNodes {
       label: "Node",
       input: "select",
       value: config.selectedNode,
-      options: Array.from(config.params.keys()).map((nodeName) => ({
+      options: Array.from(params.keys()).map((nodeName) => ({
         label: nodeName,
         value: nodeName,
       })),

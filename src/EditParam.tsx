@@ -1,5 +1,5 @@
 import { PanelExtensionContext } from "@foxglove/extension";
-import { ReactElement, useEffect, useState } from "react";
+import { ReactElement, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { DefaultNumberParams } from "./constants/defaultValues";
@@ -9,94 +9,218 @@ import {
   PanelSettings,
   PanelState,
   ParameterDetails,
-  ParameterValueDetails,
+  ParamsByNode,
   SelectSettings,
-  Settings,
 } from "./types";
 import { parseParameters } from "./utils/mappers";
+
+function loadInitialSettings(initial: unknown): PanelSettings {
+  const state = initial as Partial<PanelState> | undefined;
+  const partial = state?.settings as Partial<PanelSettings> | undefined;
+  if (!partial) {
+    return {
+      selectedNode: "",
+      selectedParameterName: "",
+      inputType: "number",
+    };
+  }
+  const numericPartial = partial as Partial<NumericSettings>;
+  const selectPartial = partial as Partial<SelectSettings>;
+  return {
+    selectedNode: partial.selectedNode ?? "",
+    selectedParameterName: partial.selectedParameterName ?? "",
+    inputType: partial.inputType ?? "number",
+    ...(numericPartial.min != undefined ? { min: numericPartial.min } : {}),
+    ...(numericPartial.max != undefined ? { max: numericPartial.max } : {}),
+    ...(numericPartial.step != undefined ? { step: numericPartial.step } : {}),
+    ...(Array.isArray(selectPartial.selectOptions)
+      ? { selectOptions: selectPartial.selectOptions }
+      : {}),
+    ...(selectPartial.selectOptionsAmount != undefined
+      ? { selectOptionsAmount: selectPartial.selectOptionsAmount }
+      : {}),
+  } as PanelSettings;
+}
+
+function NumberInput({
+  value,
+  fullParamName,
+  settings,
+  setParameter,
+}: {
+  value: number;
+  fullParamName: string;
+  settings: PanelSettings;
+  setParameter: (name: string, v: number) => void;
+}): ReactElement {
+  const [draft, setDraft] = useState<string | undefined>(undefined);
+  const numberSettings = {
+    ...DefaultNumberParams,
+    ...settings,
+  } as NumericSettings;
+  const display = draft ?? String(value);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <input
+        type="number"
+        min={numberSettings.min}
+        max={numberSettings.max}
+        step={numberSettings.step}
+        value={display}
+        onChange={(e) => {
+          setDraft(e.target.value);
+        }}
+        onBlur={() => {
+          if (draft != undefined) {
+            const v = parseFloat(draft);
+            if (Number.isFinite(v)) {
+              setParameter(fullParamName, v);
+            }
+            setDraft(undefined);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          }
+        }}
+        style={{
+          padding: "0.3rem",
+          margin: "0.3rem",
+          width: "80%",
+          minWidth: "60px",
+        }}
+      />
+    </div>
+  );
+}
+
+function SliderInput({
+  value,
+  fullParamName,
+  settings,
+  setParameter,
+}: {
+  value: number;
+  fullParamName: string;
+  settings: PanelSettings;
+  setParameter: (name: string, v: number) => void;
+}): ReactElement {
+  const [localValue, setLocalValue] = useState<number>(value);
+  const draggingRef = useRef(false);
+
+  // Mirror incoming value when the user isn't actively dragging.
+  useEffect(() => {
+    if (!draggingRef.current) {
+      setLocalValue(value);
+    }
+  }, [value]);
+
+  const sliderSettings = {
+    ...DefaultNumberParams,
+    ...settings,
+  } as NumericSettings;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "1rem",
+      }}
+    >
+      <input
+        type="range"
+        min={sliderSettings.min}
+        max={sliderSettings.max}
+        step={sliderSettings.step}
+        value={localValue}
+        onPointerDown={() => {
+          draggingRef.current = true;
+        }}
+        onPointerUp={() => {
+          draggingRef.current = false;
+        }}
+        onChange={(e) => {
+          const v = parseFloat(e.target.value);
+          setLocalValue(v);
+          setParameter(fullParamName, v);
+        }}
+        style={{ padding: "1rem", width: "calc(80% - 40px)" }}
+      />
+      <div>{localValue.toFixed(2)}</div>
+    </div>
+  );
+}
+
+function TextInput({
+  value,
+  fullParamName,
+  setParameter,
+}: {
+  value: string;
+  fullParamName: string;
+  setParameter: (name: string, v: string) => void;
+}): ReactElement {
+  const [draft, setDraft] = useState<string | undefined>(undefined);
+  const display = draft ?? value;
+  return (
+    <input
+      type="text"
+      value={display}
+      onChange={(e) => {
+        setDraft(e.target.value);
+      }}
+      onBlur={() => {
+        if (draft != undefined) {
+          setParameter(fullParamName, draft);
+          setDraft(undefined);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.currentTarget.blur();
+        }
+      }}
+      style={{ padding: "1rem" }}
+    />
+  );
+}
 
 function EditParamPanel({
   context,
 }: {
   context: PanelExtensionContext;
 }): ReactElement {
-  console.log("Initializing EditParamPanel component.");
-
-  const [settings, setSettings] = useState<PanelSettings>(() => {
-    // State initialization is unchanged
-    const initialState = context.initialState as
-      | Partial<PanelState>
-      | undefined;
-    if (initialState?.settings == undefined) {
-      console.warn(
-        "No initial state found, using default settings for EditParamPanel",
-      );
-      return {
-        selectedNode: "",
-        selectedParameterName: "",
-        params: new Map<
-          string,
-          Array<{ name: string; value: ParameterValueDetails }>
-        >(),
-        inputType: "number",
-      } as Settings;
-    }
-
-    const partialSettings = initialState.settings as
-      | Partial<PanelSettings>
-      | undefined;
-    const numericPartial = partialSettings as Partial<NumericSettings> | undefined;
-
-    return {
-      selectedNode: partialSettings?.selectedNode ?? "",
-      selectedParameterName: partialSettings?.selectedParameterName ?? "",
-      inputType: partialSettings?.inputType ?? "number",
-      params:
-        partialSettings?.params ??
-        new Map<
-          string,
-          Array<{ name: string; value: ParameterValueDetails }>
-        >(),
-      ...(numericPartial?.min != undefined ? { min: numericPartial.min } : {}),
-      ...(numericPartial?.max != undefined ? { max: numericPartial.max } : {}),
-      ...(numericPartial?.step != undefined ? { step: numericPartial.step } : {}),
-    } as PanelSettings;
-  });
+  const [settings, setSettings] = useState<PanelSettings>(() =>
+    loadInitialSettings(context.initialState),
+  );
+  const [params, setParams] = useState<ParamsByNode>(() => new Map());
 
   useEffect(() => {
-    // Tell Foxglove we want to receive parameter updates.
     context.watch("parameters");
 
-    // Set up the render handler. This is called by Foxglove when data changes.
     context.onRender = (renderState, done) => {
       if (renderState.parameters) {
-        const incomingParameters = renderState.parameters;
-        const params = parseParameters(incomingParameters);
-
-        setSettings((prevSettings: PanelSettings): PanelSettings => {
-          const updatedSettings: PanelSettings = {
-            ...prevSettings,
-            params: new Map(params as Iterable<[string, ParameterDetails[]]>),
-          };
-          // Update the parameters for this node
-          return updatedSettings;
-        });
-      } else {
-        console.warn(
-          "onRender called, but no parameters found in render state.",
-        );
+        setParams(parseParameters(renderState.parameters));
       }
       done();
     };
 
-    // CRITICAL STEP: Activate the panel's render loop by subscribing.
-    // Even an empty subscription is enough to tell Foxglove that this panel
-    // is ready to receive updates for its "watched" properties.
+    // Empty subscription is enough to activate the render loop for "watched" fields.
     context.subscribe([]);
 
-    // The cleanup function for when the panel is unmounted.
     return () => {
-      // Unsubscribe from all topics when the panel is destroyed.
       context.unsubscribeAll();
     };
   }, [context]);
@@ -108,13 +232,11 @@ function EditParamPanel({
   useEffect(() => {
     context.updatePanelSettingsEditor({
       actionHandler: (action) => {
-        setSettings((prevSettings) =>
-          settingsActionReducer(prevSettings, action),
-        );
+        setSettings((prev) => settingsActionReducer(prev, action));
       },
-      nodes: buildSettingsTree(settings),
+      nodes: buildSettingsTree(settings, params),
     });
-  }, [settings, context]);
+  }, [settings, params, context]);
 
   if (!settings.selectedNode) {
     return (
@@ -138,14 +260,7 @@ function EditParamPanel({
     );
   }
 
-  // --- RENDER LOGIC WITH `context.setParameter` ---
-  // Check that the .get method exists on the params Map
-  if (
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, @typescript-eslint/strict-boolean-expressions
-    !settings.params ||
-    settings.params.size === 0 ||
-    typeof settings.params.get !== "function"
-  ) {
+  if (params.size === 0) {
     return (
       <div style={{ padding: "1rem" }}>
         <p>No parameters available for the selected node.</p>
@@ -154,9 +269,9 @@ function EditParamPanel({
   }
 
   const nodeParams: Array<ParameterDetails> =
-    settings.params.get(settings.selectedNode) ?? [];
+    params.get(settings.selectedNode) ?? [];
 
-  if (!Array.isArray(nodeParams) || nodeParams.length === 0) {
+  if (nodeParams.length === 0) {
     return (
       <div style={{ padding: "1rem" }}>
         <p>
@@ -183,41 +298,23 @@ function EditParamPanel({
     );
   }
 
+  const setNumberParameter = (name: string, v: number) => {
+    context.setParameter(name, v);
+  };
+  const setStringParameter = (name: string, v: string) => {
+    context.setParameter(name, v);
+  };
+
   if (settings.inputType === "number") {
-    const numberSettings = { ...DefaultNumberParams, ...settings } as NumericSettings;
-
     const numVal = Number(selectedParam.value);
-
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <input
-          type="number"
-          min={numberSettings.min}
-          max={numberSettings.max}
-          step={numberSettings.step}
-          value={numVal}
-          onChange={(e) => {
-            const value = parseFloat(e.target.value);
-            console.log(
-              `Setting parameter ${fullParamName} to ${value} via context.setParameter`,
-            );
-            context.setParameter(fullParamName, value);
-          }}
-          style={{
-            padding: "0.3rem",
-            margin: "0.3rem",
-            width: "80%",
-            minWidth: "60px",
-          }}
-        />
-      </div>
+      <NumberInput
+        key={fullParamName}
+        value={numVal}
+        fullParamName={fullParamName}
+        settings={settings}
+        setParameter={setNumberParameter}
+      />
     );
   }
   if (settings.inputType === "slider") {
@@ -228,32 +325,14 @@ function EditParamPanel({
       );
       return <div>Invalid number value</div>;
     }
-    const sliderSettings = { ...DefaultNumberParams, ...settings } as NumericSettings;
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "1rem",
-        }}
-      >
-        <input
-          type="range"
-          min={sliderSettings.min}
-          max={sliderSettings.max}
-          step={sliderSettings.step}
-          value={numVal}
-          onChange={(e) => {
-            const value = parseFloat(e.target.value);
-
-            context.setParameter(fullParamName, value);
-          }}
-          style={{ padding: "1rem", width: "calc(80% - 40px)" }}
-        />
-        <div>{numVal.toFixed(2)}</div>
-      </div>
+      <SliderInput
+        key={fullParamName}
+        value={numVal}
+        fullParamName={fullParamName}
+        settings={settings}
+        setParameter={setNumberParameter}
+      />
     );
   }
   if (settings.inputType === "boolean") {
@@ -276,8 +355,7 @@ function EditParamPanel({
           type="checkbox"
           checked={selectedParam.value}
           onChange={(e) => {
-            const value = e.target.checked;
-            context.setParameter(fullParamName, value);
+            context.setParameter(fullParamName, e.target.checked);
           }}
           style={{
             padding: "1rem",
@@ -294,15 +372,11 @@ function EditParamPanel({
       return <div>Invalid text value</div>;
     }
     return (
-      <input
-        type="text"
+      <TextInput
+        key={fullParamName}
         value={selectedParam.value}
-        onChange={(e) => {
-          const value = e.target.value;
-          // Use context.setParameter instead of callService
-          context.setParameter(fullParamName, value);
-        }}
-        style={{ padding: "1rem" }}
+        fullParamName={fullParamName}
+        setParameter={setStringParameter}
       />
     );
   }

@@ -28,11 +28,12 @@ export type PanelState = {
 };
 
 export type Settings = {
-  params: Map<string, Array<ParameterDetails>>;
   selectedNode: string;
   selectedParameterName: string;
   inputType: "number" | "slider" | "boolean" | "select" | "text";
 };
+
+export type ParamsByNode = Map<string, Array<ParameterDetails>>;
 
 export type NumericSettings = {
   min: number;
