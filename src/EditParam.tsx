@@ -219,6 +219,8 @@ function EditParamPanel({
     context.onRender = (renderState, done) => {
       if (renderState.parameters) {
         setParams(parseParameters(renderState.parameters));
+      } else {
+        setParams(new Map());
       }
       done();
     };
