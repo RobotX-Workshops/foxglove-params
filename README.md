@@ -93,6 +93,14 @@ This project took ideas and inspiration and improved upon the following sources:
 - https://github.com/nobleo/ros2-parameter-extension
 - https://github.com/ZealousGinger/foxglove-parameter-slider
 
+## 📄 License
+
+Copyright 2025 Andrew Johnson (RobotX Workshops).
+
+Licensed under the [Apache License, Version 2.0](LICENSE).
+
+You are free to use, modify, fork, and redistribute this project, including commercially. In return, attribution is required: any fork, copy, or derivative work you distribute must retain the [`NOTICE`](NOTICE) file and credit Andrew Johnson (RobotX Workshops) as the original author, with a link back to <https://github.com/RobotX-Workshops/foxglove-params>. You must also state any significant changes you made. See section 4 of the License for the exact terms.
+
 ## 📚 Other resources 
 
 - https://docs.foxglove.dev/extension-api/type-aliases/ExtensionPanelRegistration
