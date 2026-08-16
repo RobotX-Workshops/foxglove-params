@@ -1,10 +1,10 @@
 {
   "name": "foxglove-edit-params",
   "displayName": "foxglove-edit-params",
-  "description": "",
+  "description": "View and adjust ROS parameters of any type with sliders, checkboxes, and numeric inputs, using the existing Foxglove bridge instead of a separate rosbridge server.",
   "publisher": "RobotX Workshops",
   "homepage": "https://robotxworkshops.tech/",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "Apache-2.0",
   "main": "./dist/extension.js",
   "files": [
@@ -12,7 +12,14 @@
     "LICENSE",
     "NOTICE"
   ],
-  "keywords": [],
+  "keywords": [
+    "ros",
+    "ros2",
+    "parameters",
+    "parameter",
+    "editor",
+    "panel"
+  ],
   "scripts": {
     "build": "foxglove-extension build",
     "foxglove:prepublish": "foxglove-extension build --mode production",
