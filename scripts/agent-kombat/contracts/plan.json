@@ -1,0 +1,14 @@
+{
+  "id": "plan",
+  "noun": "plan",
+  "output_field": "plan_markdown",
+  "revised_field": "revised_plan_markdown",
+  "final_filename": "plan-final.md",
+  "final_label": "Final plan",
+  "context_mode": "file",
+  "initial_task": "Create an implementation plan for the requirement below.",
+  "debate_task": "You are revising your own plan after seeing a competing plan.",
+  "synthesis_task": "You are synthesizing the final implementation plan from an Agent Kombat debate.",
+  "round0_note": "Treat this as plan generation, not implementation.",
+  "synthesis_note": "Produce a concise, auditable Markdown plan. Do not execute the plan."
+}

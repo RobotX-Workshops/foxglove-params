@@ -1,0 +1,222 @@
+#!/usr/bin/env bash
+#
+# Fake `claude` for the offline smoke test.
+#
+# Its real job is ASSERTING THE EXACT ARGV the adapter passes. A fake that only
+# returned plausible JSON would let a flag regression in adapter_claude ship
+# silently; this one fails the smoke test instead. Catching our own regressions
+# is free here, which matters because there is no CI job that spends real money.
+#
+set -euo pipefail
+
+# Captured before the parse loop consumes "$@", so the diagnostic can show the real
+# argv instead of echoing the assertion message twice.
+FAKE_ARGV="$*"
+fail() {
+  printf 'fake-claude: ASSERTION FAILED: %s\n' "$*" >&2
+  printf 'fake-claude: argv was: %s\n' "$FAKE_ARGV" >&2
+  exit 64
+}
+
+if [[ "${1:-}" == "--version" ]]; then
+  printf 'fake-claude 0.0.0 (smoke)\n'
+  exit 0
+fi
+
+have_print=0
+model=""
+session_id=""
+resume_id=""
+tools_seen=0
+tools_value="unset"
+output_format=""
+schema=""
+prompt=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -p | --print)
+      have_print=1
+      shift
+      ;;
+    --model)
+      model="$2"
+      shift 2
+      ;;
+    --session-id)
+      session_id="$2"
+      shift 2
+      ;;
+    -r | --resume)
+      resume_id="$2"
+      shift 2
+      ;;
+    --tools)
+      tools_seen=1
+      tools_value="$2"
+      shift 2
+      ;;
+    --output-format)
+      output_format="$2"
+      shift 2
+      ;;
+    --json-schema)
+      schema="$2"
+      shift 2
+      ;;
+    --debug-file)
+      shift 2
+      ;;
+    -*)
+      fail "unexpected flag: $1"
+      ;;
+    *)
+      # The driver MUST deliver the prompt on stdin, never as a positional.
+      # A 66KB argv prompt makes the real CLI return
+      # error_max_structured_output_retries with zero token usage -- five
+      # attempts that never reach a model. Assert it here so the smoke test
+      # locks the fix in.
+      fail "prompt passed as an argv positional; it must arrive on stdin"
+      ;;
+  esac
+done
+
+[[ "$have_print" -eq 1 ]] || fail "missing -p/--print"
+[[ -n "$model" ]] || fail "missing --model"
+[[ "$output_format" == "json" ]] || fail "expected --output-format json, got '$output_format'"
+[[ "$tools_seen" -eq 1 ]] || fail "missing --tools: without it the read-only guarantee is gone"
+# Must be an explicit READ-ONLY allowlist. Empty is no longer acceptable: it also
+# strips Read/Grep/Glob, which left the claude participant unable to check any
+# repo fact -- the first real debate caught that about itself. Equally, any
+# mutating tool appearing here breaks the read-only guarantee.
+[[ -n "$tools_value" ]] || fail "--tools is empty; that strips Read/Grep/Glob and leaves the participant unable to ground anything"
+case ",$tools_value," in
+  *,Write,* | *,Edit,* | *,Bash,* | *,Task,* | *,Skill,* | *,NotebookEdit,*)
+    fail "--tools grants a mutating or recursing tool: '$tools_value'"
+    ;;
+esac
+[[ "$tools_value" == *Read* ]] || fail "--tools omits Read: the participant cannot ground its plan"
+# Prompt arrives on stdin. Fail fast if stdin is a terminal: `cat` would block
+# forever waiting for input the driver was supposed to redirect, which reads as a
+# hung smoke test rather than a wiring bug.
+[[ ! -t 0 ]] || fail "stdin is a terminal; the driver must redirect the prompt file"
+prompt="$(cat)"
+[[ -n "$prompt" ]] || fail "no prompt on stdin"
+
+if [[ -n "$session_id" && -n "$resume_id" ]]; then
+  fail "both --session-id and --resume passed"
+fi
+if [[ -z "$session_id" && -z "$resume_id" ]]; then
+  fail "neither --session-id nor --resume passed"
+fi
+
+effective_session="${session_id:-$resume_id}"
+
+# Which phase is this? Detected from the prompt body, exactly as a real model
+# would have to. Keeps the fake honest about what the prompt actually says.
+phase="unknown"
+case "$prompt" in
+  *"This is Round 0"*) phase="round0" ;;
+  *"You are an independent judge"*) phase="judge" ;;
+  *"Return JSON that matches the debater schema"*) phase="debate" ;;
+  *"Return only Markdown"*) phase="synthesis" ;;
+esac
+[[ "$phase" != "unknown" ]] || fail "could not classify the prompt phase"
+
+# Participant self-identification must be present and must be a LABEL, never a
+# model name -- the anonymity property the parity check also covers.
+case "$phase" in
+  round0 | debate)
+    [[ "$prompt" == *"Participant "* ]] || fail "$phase prompt names no participant label"
+    case "$prompt" in
+      *"claude/"* | *"deepseek/"* | *"gpt-5"*)
+        fail "$phase prompt leaks a harness/model identity"
+        ;;
+    esac
+    ;;
+esac
+
+if [[ "$phase" != "synthesis" ]]; then
+  [[ -n "$schema" ]] || fail "$phase call passed no --json-schema"
+  printf '%s' "$schema" | jq -e 'type == "object"' >/dev/null \
+    || fail "--json-schema was not a JSON object"
+else
+  [[ -z "$schema" ]] || fail "synthesis must not pass --json-schema (it returns markdown)"
+fi
+
+emit() {
+  jq -n --arg sid "$effective_session" --argjson so "$1" \
+    '{type: "result", subtype: "success", session_id: $sid, is_error: false, structured_output: $so}'
+}
+
+case "$phase" in
+  round0)
+    emit "$(jq -n --arg md "# Plan from a claude participant
+
+## Approach
+Add the endpoint behind the existing router.
+
+## Files
+- services/provisioning/main.go
+" '{plan_markdown: $md}')"
+    ;;
+  debate)
+    emit "$(jq -n --arg md "# Revised plan from a claude participant
+
+## Approach
+Add the endpoint behind the existing router, with a readiness probe.
+" '{
+      strengths_to_steal: [{from: "Participant B", strength: "explicit dependency probe"}],
+      revised_plan_markdown: $md,
+      critique: [{target: "Participant B", finding: "no rollback path"}],
+      could_not_fault: [],
+      unresolved_issues: [{
+        issue: "whether readiness should fail closed",
+        why_it_matters: "a fail-open probe hides outages",
+        suggested_test_or_decision_rule: "kill Postgres and assert a 503"
+      }]
+    }')"
+    ;;
+  judge)
+    # Deterministic escalation: ask for exactly one replay the first time we are
+    # called, then converge. That exercises the judge replay path in the smoke
+    # test without an unbounded loop. Keyed off a counter file so it survives
+    # separate process invocations.
+    counter="${FAKE_HARNESS_STATE:-/tmp}/fake-claude-judge-count"
+    n=0
+    [[ ! -f "$counter" ]] || n="$(cat "$counter")"
+    n="$((n + 1))"
+    printf '%s\n' "$n" >"$counter"
+    if [[ "$n" -eq 1 ]]; then
+      emit '{
+        "converged": false,
+        "converged_participants": [],
+        "unresolved_issues": ["Participant A and B: readiness fail-open vs fail-closed is unsettled"],
+        "agreements_lacking_justification": ["all participants assume the router is the right seam"],
+        "recommendation": "another_round",
+        "focus_for_next_round": "Settle whether the readiness probe fails open or closed.",
+        "reasoning": "The fail-open question was raised but never argued through."
+      }'
+    else
+      emit '{
+        "converged": true,
+        "converged_participants": ["Participant A", "Participant B"],
+        "unresolved_issues": [],
+        "agreements_lacking_justification": [],
+        "recommendation": "synthesize",
+        "focus_for_next_round": null,
+        "reasoning": "Both participants argued the fail-closed case and agreed with reasons."
+      }'
+    fi
+    ;;
+  synthesis)
+    jq -n --arg sid "$effective_session" --arg md "# Final plan
+
+## Approach
+Add /healthz behind the existing router; the probe fails closed.
+
+## Validation
+- go test ./services/provisioning/...
+" '{type: "result", subtype: "success", session_id: $sid, is_error: false, result: $md}'
+    ;;
+esac

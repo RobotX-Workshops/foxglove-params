@@ -1,0 +1,14 @@
+{
+  "id": "artifact",
+  "noun": "artifact",
+  "output_field": "artifact_markdown",
+  "revised_field": "revised_artifact_markdown",
+  "final_filename": "artifact-final.md",
+  "final_label": "Final artifact",
+  "context_mode": "file",
+  "initial_task": "Create the requested artifact for the requirement below.",
+  "debate_task": "You are revising your own artifact after seeing a competing artifact.",
+  "synthesis_task": "You are synthesizing the final requested artifact from an Agent Kombat debate.",
+  "round0_note": "Do not create a plan unless the requirement explicitly asks for a plan.",
+  "synthesis_note": "Produce the requested artifact itself. Do not produce a plan, critique, or explanation unless the requirement asks for one."
+}
