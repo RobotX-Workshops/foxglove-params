@@ -371,7 +371,15 @@ print_final_report() {
     warn "no judge verdict: this plan had no independent review"
   fi
   local dispatches
-  dispatches="$(grep -c '"event":"agent.call.completed"' "$target/events.jsonl" 2>/dev/null || printf 0)"
+  # `grep -c` prints 0 AND exits 1 when nothing matches, so a bare
+  # `|| printf 0` appends a SECOND zero and the report reads "00". Distinguish
+  # no-match (a real count of zero) from an unreadable log.
+  if [[ -r "$target/events.jsonl" ]]; then
+    dispatches="$(grep -c '"event":"agent.call.completed"' "$target/events.jsonl" || true)"
+  else
+    dispatches=0
+  fi
+  [[ "$dispatches" =~ ^[0-9]+$ ]] || dispatches=0
   printf '\nDispatches completed: %s\n' "$dispatches"
   printf 'Events:       %s\n' "$target/events.jsonl"
   printf '\nNext: ground the final %s against the real repo before acting on it.\n' "$CONTRACT_NOUN"

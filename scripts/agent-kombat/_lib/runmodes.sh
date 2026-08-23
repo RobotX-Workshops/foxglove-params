@@ -113,7 +113,21 @@ load_run_config() {
   # shellcheck disable=SC2034  # read by run_judge_loop in _lib/orchestration.sh
   MAX_EXTRA_ROUNDS="$(config_get "$target" '.max_extra_rounds')"
   # shellcheck disable=SC2034  # read by run_judge_loop in _lib/orchestration.sh
-  [[ "$(config_get "$target" '.judge_enabled')" != "false" ]] || NO_JUDGE=1
+  # Restore BOTH directions. The old form could only ever set NO_JUDGE=1, so a
+  # resume inherited whatever the current invocation happened to pass rather
+  # than what the run was actually configured with.
+  if [[ "$(config_get "$target" '.judge_enabled')" == "false" ]]; then
+    NO_JUDGE=1
+  else
+    NO_JUDGE=0
+  fi
+  # Same class: without this, a run started with --allow-unstructured-judge
+  # silently resumes under strict validation (or the reverse).
+  if [[ "$(config_get "$target" '.allow_unstructured_judge')" == "true" ]]; then
+    ALLOW_UNSTRUCTURED_JUDGE=1
+  else
+    ALLOW_UNSTRUCTURED_JUDGE=0
+  fi
   REQUIREMENT="$(cat "$target/requirement.txt")"
 
   CONTRACT_ID="$(config_get "$target" '.contract.id')"

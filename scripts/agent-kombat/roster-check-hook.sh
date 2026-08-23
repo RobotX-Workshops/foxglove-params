@@ -18,18 +18,25 @@ DRIVER="$SCRIPT_DIR/agent-kombat.sh"
 
 status=0
 
+# Scratch file for driver stderr. Deliberately NOT under $SCRIPT_DIR: this hook
+# runs pre-commit, and a stray .roster-check.err inside the source tree can be
+# staged by a `git add -A` in another hook. The trap covers the early-exit and
+# interrupt paths the old unconditional `rm -f` missed.
+ERR_FILE="$(mktemp -t agent-kombat-roster-check)"
+cleanup_err_file() { rm -f "$ERR_FILE"; }
+trap cleanup_err_file EXIT INT TERM
+
 for roster in "$SCRIPT_DIR"/rosters/*.json; do
   name="$(basename "$roster" .json)"
   # The schema file is not a roster; it is validated separately below.
   [[ "$name" != "roster.schema" ]] || continue
-  if bash "$DRIVER" --roster-check --roster-file "$roster" >/dev/null 2>"$SCRIPT_DIR/.roster-check.err"; then
+  if bash "$DRIVER" --roster-check --roster-file "$roster" >/dev/null 2>"$ERR_FILE"; then
     printf 'ok: roster %s\n' "$name"
   else
     printf 'FAIL: roster %s\n' "$name" >&2
-    sed -n '1,20p' "$SCRIPT_DIR/.roster-check.err" >&2
+    sed -n '1,20p' "$ERR_FILE" >&2
     status=1
   fi
-  rm -f "$SCRIPT_DIR/.roster-check.err"
 done
 
 # Contracts are prompt text, so a missing key silently degrades a prompt rather

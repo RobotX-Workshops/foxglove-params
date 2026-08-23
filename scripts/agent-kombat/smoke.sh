@@ -212,7 +212,7 @@ check "every closed object requires all of its properties" \
       fi
     done"
 check "dry run made zero dispatches" \
-  bash -c "! grep -q 'agent.call.started' '$DRY/events.jsonl'"
+  bash -c "[[ -f '$DRY/events.jsonl' ]] && ! grep -q 'agent.call.started' '$DRY/events.jsonl'" 
 check "dry run reported round-0 prompt parity" grep -q 'round-0 prompt parity' "$WORK/dry.log"
 # Assert the files EXIST first. `! grep ... missing-file` succeeds, so the bare
 # negation passed vacuously whenever the dry run had written no prompts at all.

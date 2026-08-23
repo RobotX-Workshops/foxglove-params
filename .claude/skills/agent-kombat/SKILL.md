@@ -291,7 +291,7 @@ Verdict → `triage.md` in the run dir: **accept** (grounded, safe to implement)
    `--auto` auto-approves every permission not *explicitly* denied, defeating
    the read-only guarantee `kombat-debater` exists to provide. `glm-delegate`
    uses `OPENCODE_YOLO` deliberately; a debate participant must not.
-4. **Planning only.** Claude slots run print-mode with tools off, codex slots
+4. **Planning only.** Claude slots run print-mode with an explicit read-only tool allowlist (`--tools "Read,Grep,Glob"`, not `--tools ""` -- a debater that cannot read the repo argues from priors), codex slots
    read-only, opencode slots behind `kombat-debater`. The debate never edits.
 
 ## Common mistakes

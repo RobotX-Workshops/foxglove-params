@@ -92,9 +92,31 @@ opencode_agent_proven() {
   local probe_out
   probe_out="$(mktemp)"
   local rc=0
+  # Bound the canary. It runs before any billed dispatch, so a provider that
+  # accepts the connection and then stalls would hang preflight forever -- the
+  # driver's idle watchdog only covers debate turns, not this probe. macOS ships
+  # no timeout(1), so poll a deadline and kill the whole tree (the CLIs spawn
+  # children that outlive a plain kill).
+  local budget="${AGENT_KOMBAT_CANARY_TIMEOUT:-120}"
   opencode run "Reply with exactly: ok" \
     --agent "$want" -m "$model" ${variant_args[@]+"${variant_args[@]}"} --format json \
-    </dev/null >"$probe_out" 2>&1 || rc=$?
+    </dev/null >"$probe_out" 2>&1 &
+  local probe_pid=$!
+  local waited=0
+  while kill -0 "$probe_pid" 2>/dev/null; do
+    if [[ "$waited" -ge "$budget" ]]; then
+      kill_process_tree "$probe_pid" 2>/dev/null || true
+      wait "$probe_pid" 2>/dev/null || true
+      warn "canary dispatch for agent '$want' on '$model' exceeded ${budget}s; treating as a failure"
+      rm -f "$probe_out"
+      # rc=1, not 2: this is the model/provider diagnostic path, not the
+      # agent-did-not-resolve path.
+      return 1
+    fi
+    sleep 1
+    waited="$((waited + 1))"
+  done
+  wait "$probe_pid" || rc=$?
   if grep -qi 'not found. Falling back' "$probe_out"; then
     rm -f "$probe_out"
     return 2
@@ -248,6 +270,10 @@ run_check_harnesses() {
         # Skip only this canary. Returning early here would jump past the
         # accumulated-failures check below and report a green harness run.
         warn "opencode slot(s) '${want_slots}' name agent '$want_agent' with no model; skipping the canary dispatch"
+        # Count it. preflight_opencode_agents dies on this case; reporting a
+        # green harness run for a slot whose canary never ran is the same
+        # false-negative in a friendlier disguise.
+        failures="$((failures + 1))"
         continue
       fi
       info "proving opencode agent '$want_agent' by canary dispatch on $want_model (slots: ${want_slots}; a few tokens, the listing is too flaky to decide on)"

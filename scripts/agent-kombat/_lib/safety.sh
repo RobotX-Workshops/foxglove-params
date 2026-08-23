@@ -116,7 +116,7 @@ enforce_workdir_location() {
   # Do not merely assume tmp/ is ignored -- assert it, so a change to .gitignore
   # cannot quietly turn every future debate into a committable artifact.
   if ! (cd "$REPO_ROOT" && git check-ignore -q tmp 2>/dev/null); then
-    die "$tmp_root is not gitignored; refusing to write debate artifacts there. Add 'tmp' to .gitignore (no trailing slash: this check runs before the directory exists, and 'tmp/' only matches a directory that is already there)."
+    die "$tmp_root is not gitignored; refusing to write debate artifacts there. Add '/tmp' to .gitignore (leading slash anchors it to the repo root; no trailing slash, because this check runs before the directory exists and 'tmp/' only matches a directory that is already there)."
   fi
 }
 
