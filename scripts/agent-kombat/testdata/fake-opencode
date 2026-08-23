@@ -190,14 +190,14 @@ session_id="${session:-00000000-opencode-session-0001}"
 payload=""
 case "$phase" in
   round0)
-    payload="$(jq -c -n --arg md "# Plan from an opencode participant
+    payload="$(jq -c -n --arg md "# Plan from a debate participant
 
 ## Approach
 Expose the endpoint and check both dependencies with a bounded timeout.
 " '{plan_markdown: $md}')"
     ;;
   debate | reask)
-    payload="$(jq -c -n --arg md "# Revised plan from an opencode participant
+    payload="$(jq -c -n --arg md "# Revised plan from a debate participant
 
 ## Approach
 Expose the endpoint; bounded dependency checks; fail closed.

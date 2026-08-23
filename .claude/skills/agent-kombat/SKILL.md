@@ -316,5 +316,5 @@ Verdict → `triage.md` in the run dir: **accept** (grounded, safe to implement)
 
 - [scripts/agent-kombat/agent-kombat.sh](../../../scripts/agent-kombat/agent-kombat.sh) — the driver, single source of truth for flags
 - [.opencode/agent/kombat-debater.md](../../../.opencode/agent/kombat-debater.md) — the read-only opencode participant
-- `second-opinion` (vendored, `make install-claude-skills`) — cheaper external review of an existing artifact
-- [glm-delegate](../glm-delegate/SKILL.md) — single delegated task, same triage doctrine
+- `second-opinion` (not installed in this repo) — cheaper external review of an existing artifact
+- `glm-delegate` (not installed in this repo) — single delegated task, same triage doctrine

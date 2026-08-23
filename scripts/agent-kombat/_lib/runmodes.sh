@@ -309,14 +309,20 @@ check_round0_prompt_parity() {
   local reference=""
   local mismatch=0
   for id in "${DEBATER_IDS[@]}"; do
-    local label
+    local label label_escaped
     label="$(slot_field "$id" '.label')"
+    # The label comes from roster JSON, and the schema does not constrain its
+    # characters. Interpolated raw, a label containing a regex metacharacter or
+    # the '/' delimiter either changes what the substitution matches or breaks
+    # the sed expression outright. Escape both classes; '|' is the delimiter
+    # below because it is likelier absent from a label than '/'.
+    label_escaped="$(printf '%s' "$label" | sed -e 's/[.[\*^$()+?{}|]/\\&/g')"
     # Normalise away the two things that legitimately differ per harness: the
     # inline-schema block (only fenced_json slots carry one, because their
     # harness cannot be handed a schema) and the one-line schema instruction.
     # `cat -s` collapses the blank line the deleted block leaves behind; without
     # it this check fails on whitespace and teaches people to ignore it.
-    sed -e "s/${label}/<SELF>/g" "$target/rounds/r0-${id}.prompt.txt" \
+    sed -e "s|${label_escaped}|<SELF>|g" "$target/rounds/r0-${id}.prompt.txt" \
       | sed -e '/---BEGIN REQUIRED JSON SCHEMA---/,/---END REQUIRED JSON SCHEMA---/d' \
       | grep -v 'Your response must match the provided structured output schema' \
       | grep -v 'Your final response must be JSON matching the provided output schema' \

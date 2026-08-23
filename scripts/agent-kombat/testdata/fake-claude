@@ -151,7 +151,7 @@ emit() {
 
 case "$phase" in
   round0)
-    emit "$(jq -n --arg md "# Plan from a claude participant
+    emit "$(jq -n --arg md "# Plan from a debate participant
 
 ## Approach
 Add the endpoint behind the existing router.
@@ -161,7 +161,7 @@ Add the endpoint behind the existing router.
 " '{plan_markdown: $md}')"
     ;;
   debate)
-    emit "$(jq -n --arg md "# Revised plan from a claude participant
+    emit "$(jq -n --arg md "# Revised plan from a debate participant
 
 ## Approach
 Add the endpoint behind the existing router, with a readiness probe.

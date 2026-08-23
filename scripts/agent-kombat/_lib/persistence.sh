@@ -258,7 +258,7 @@ write_round_manifest() {
       slots: $slots,
       objections_path: $objections,
       published: true
-    }' >"$manifest"
+    }' | write_atomic "$manifest"
 }
 
 publish_round() {

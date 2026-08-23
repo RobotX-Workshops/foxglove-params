@@ -94,7 +94,19 @@ file_mtime_epoch() {
     printf '0\n'
     return
   }
-  stat -f '%m' "$file" 2>/dev/null || stat -c '%Y' "$file" 2>/dev/null || printf '0\n'
+  # Same dialect-probing shape as file_size_bytes above, and for the same
+  # reason: `stat -f '%m' FILE` on GNU coreutils means --file-system, which
+  # prints a filesystem report to stdout AND exits non-zero, so a BSD-first
+  # `||` chain concatenates that report with the GNU result. Probe GNU first
+  # (BSD stat rejects -c with no stdout) and validate the value rather than
+  # trusting an exit status.
+  local mtime
+  mtime="$(stat -c '%Y' "$file" 2>/dev/null || true)"
+  if [[ ! "$mtime" =~ ^[0-9]+$ ]]; then
+    mtime="$(stat -f '%m' "$file" 2>/dev/null || true)"
+  fi
+  [[ "$mtime" =~ ^[0-9]+$ ]] || mtime=0
+  printf '%s\n' "$mtime"
 }
 
 format_duration() {
@@ -104,7 +116,16 @@ format_duration() {
 
 sha256_file() {
   if [[ -e "$1" ]]; then
-    shasum -a 256 "$1" | awk '{print $1}'
+    # shasum (perl, ships with macOS) and sha256sum (coreutils) are not both
+    # present on every host; manifests carry these digests, so falling back
+    # matters rather than emitting an empty field.
+    if command -v shasum >/dev/null 2>&1; then
+      shasum -a 256 "$1" | awk '{print $1}'
+    elif command -v sha256sum >/dev/null 2>&1; then
+      sha256sum "$1" | awk '{print $1}'
+    else
+      printf 'unavailable\n'
+    fi
   else
     printf 'absent\n'
   fi

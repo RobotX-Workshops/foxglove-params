@@ -7,7 +7,36 @@
 - Pinned SHA: **`1a034dd56708532732f0734ea1073ad8a943fc5a`** (committed 2026-05-06).
 - Licence: **MIT**, `Copyright (c) 2026 agent-kombat contributors`. Permissive — modification and
   redistribution are allowed; the one obligation is that the copyright notice and permission notice
-  travel with the code, which is what this section discharges. Full text: upstream `LICENSE`.
+  travel with the code. Pointing at upstream's `LICENSE` does not discharge that, so the notice is
+  reproduced here in full:
+
+  ```text
+  MIT License
+
+  Copyright (c) 2026 agent-kombat contributors
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+  ```
+
+  This reproduces the standard MIT permission notice under the copyright line upstream declares.
+  If upstream's `LICENSE` differs in any wording, upstream's text governs — re-check it when
+  re-diffing.
 - **Ported:** upstream's single bash driver `agent-kombat` (2462 lines at that pinned SHA) — the
   debate loop, round manifests, event log, resume/show, and the judge/synthesis phases. Landed here
   as `agent-kombat.sh` (the entry point) plus the `_lib/` libraries it sources — not a single file;
@@ -119,6 +148,8 @@ conflict to resolve.
 | D13 | Slots within a round dispatch **in parallel**; each writes `rounds/r{N}-<slot>.events.jsonl`, merged into `events.jsonl` at the round barrier. | Upstream is strictly sequential — `run_round0` calls `run_claude_round0` then `run_codex_round0` (~L1946-1947), same in `run_debate_round` (~L1977-1978) — so wall-clock is the sum of the slowest models, and N debaters would make that worse. The merge exists for two distinct reasons. (a) **Corruption:** the parent poll loop is single-threaded, so parent-side logging alone could safely share one file — but each adapter **child** also emits its own events (the `fenced_json` re-ask loop runs inside the child), and concurrent appends to one file interleave **mid-line** (upstream's `log_event` ~L963-977 is a bare `>>`, and macOS ships no `flock(1)` to serialise them). Each slot therefore owns its file, written by the child while it lives and by the parent only after it is dead. (b) **Determinism:** parent-side completion events would otherwise be ordered by whichever slot finished first. Merging in roster-then-timestamp order restores a stable sequence, which is what lets `smoke.sh` assert on the event sequence at all — it verifies two identical runs produce a byte-identical `(event, slot)` sequence. |
 | D14 | N-way full mesh; every participant is a roster slot with an **anonymised** label ("Participant A"); judge and synthesizer are first-class slots. | Upstream hardcodes `agent1: {name: "claude"}`, `agent2: {name: "codex"}`, `judge: {name: "claude"}` (~L912-929) and defaults the judge model to the Claude debater's (~L681-686), while its own judge prompt opens "You are an independent judge. You did not participate in the debate." (~L1246). Sharing a harness *and* a model with a debater is not independence. Hence: judge is a slot you must configure, and the driver warns when `judge.{harness,model}` matches any debater's pair. Labels are anonymous so a debater cannot defer to a brand name. |
 | D15 | A mandatory isolated-subagent grounding triage of `plan-final.md` before the output is trusted. | Repo rule, inherited from `second-opinion` / `glm-delegate`: model output is guilty until proven innocent. Upstream has no equivalent — `run_synthesis` (~L2043-2092) writes the final Markdown and exits `ok`. A synthesised plan that cites files or APIs that do not exist is the failure mode this catches. |
+| D19 | Review-driven correctness fixes on top of the port: judge attempts are reused on `--resume` when a valid `rounds/judge-N.turn.json` already exists; round manifests go through `write_atomic`; `validate_judge_verdict` also requires `converged_participants`; an unknown `context_mode` dies instead of silently producing no shared-context file; `check_flag` matches whole flag tokens; the opencode canary forwards `--variant`; the symlink walk terminates at the unresolved `tmp` path; `${SLOT_ORDER[@]}`, `${!MODEL_OVERRIDE[@]}` and the heartbeat `waiting` array are guarded for empty expansion; judge and synthesis prompts frame embedded participant artifacts as untrusted content; the roster-check hook fails when it cannot validate; fixtures no longer name a harness in their plan headings. | Found by adversarial review of the vendoring PR. Three carry money or correctness weight rather than tidiness: the judge was re-billed on every resume that died after the verdict but before synthesis; a non-atomic manifest write reintroduces exactly the half-written-state class `write_atomic` exists to prevent; and `grep -q -- --json` also matched `--json-schema`, so a renamed flag would have reported green. The empty-array guards make the documented "bash >= 4.0 is enough because empty-array expansions are guarded" claim in SKILL.md true, which it was not at three sites. |
+| D18 | `file_mtime_epoch` probes GNU `stat -c` before BSD `stat -f` and validates the result; `sha256_file` falls back to `sha256sum`; the "not gitignored" die message recommends `tmp` rather than `tmp/`. | Three defects found on vendoring. `stat -f` on GNU coreutils means `--file-system`: it prints a filesystem report to stdout *and* exits non-zero, so the original BSD-first `\|\|` chain concatenated that report with the real epoch — the exact trap `file_size_bytes` directly above already documents and avoids. `shasum` is not universal and a missing digest silently weakens the manifest. The die message was self-defeating: `git check-ignore -q tmp` runs before the workdir exists, and a trailing-slash pattern only matches an existing directory, so an operator following the message hit the same `die` forever. |
 | D17 | The port is split into `agent-kombat.sh` (a ~500-line entry point) plus eleven libraries under `_lib/`, each sourced unconditionally at file top level, rather than kept as upstream's single file. | Originally kept as one file so a change upstream stayed a mechanical diff; that rationale stopped holding. At 3,781 lines the single file was a **6.1×** outlier against the next-largest tracked shell script in this repo (620 lines, across 98 of them), against this repo's own "~800 lines is a strong signal to split" guidance for *new* files. By the time of the split the port had already diverged from upstream structurally in 16 recorded ways (D1-D16), so no line-by-line correspondence with upstream was being preserved by keeping one file. See "Re-diffing when upstream moves" above for the per-`_lib/` mapping. |
 
 ## Kept deliberately — do not simplify away

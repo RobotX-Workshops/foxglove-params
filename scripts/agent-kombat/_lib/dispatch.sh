@@ -216,7 +216,14 @@ par_run() {
       for ((i = 0; i < count; i++)); do
         [[ "${done_flag[$i]}" -eq 1 ]] || waiting+=("${PAR_SLOT[$i]}:$(human_size "$(file_size_bytes "${PAR_PREFIX[$i]}.raw")")")
       done
-      info "$phase_label $(format_duration "$((now - start))") | waiting: ${waiting[*]}"
+      # SKILL.md advertises bash >= 4.0, where expanding an empty array under
+      # `set -u` is an unbound-variable error (fixed only in 4.4). Every slot
+      # can be done here while the loop still ticks once, so guard it.
+      if [[ "${#waiting[@]}" -gt 0 ]]; then
+        info "$phase_label $(format_duration "$((now - start))") | waiting: ${waiting[*]}"
+      else
+        info "$phase_label $(format_duration "$((now - start))")"
+      fi
       next_tick="$((now + HEARTBEAT_INTERVAL))"
     fi
 

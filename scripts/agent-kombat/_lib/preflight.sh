@@ -83,11 +83,17 @@ preflight_tools() {
 opencode_agent_proven() {
   local want="$1"
   local model="$2"
+  local variant="${3:-}"
+  # Forward --variant exactly as adapter_opencode does. A canary that dispatches
+  # differently from the real turn proves the wrong thing: it can pass while the
+  # combination the debate actually uses is rejected.
+  local variant_args=()
+  [[ -z "$variant" ]] || variant_args=(--variant "$variant")
   local probe_out
   probe_out="$(mktemp)"
   local rc=0
   opencode run "Reply with exactly: ok" \
-    --agent "$want" -m "$model" --format json \
+    --agent "$want" -m "$model" ${variant_args[@]+"${variant_args[@]}"} --format json \
     </dev/null >"$probe_out" 2>&1 || rc=$?
   if grep -qi 'not found. Falling back' "$probe_out"; then
     rm -f "$probe_out"
@@ -119,12 +125,12 @@ preflight_opencode_agents() {
   # grouping by agent alone would leave every model after the first untested --
   # `deepseek-only` runs two models behind one agent, and its second slot would
   # have failed mid-debate instead of at preflight.
-  local want model slots
-  while IFS=$'\t' read -r want model slots; do
+  local want model slots variant
+  while IFS=$'\t' read -r want model slots variant; do
     [[ -n "$want" ]] || continue
     [[ -n "$model" ]] || die "opencode slot(s) '${slots}' name agent '$want' with no model; cannot prove the read-only agent without one"
     local probe_rc=0
-    opencode_agent_proven "$want" "$model" || probe_rc=$?
+    opencode_agent_proven "$want" "$model" "$variant" || probe_rc=$?
     if [[ "$probe_rc" -eq 0 ]]; then
       ok "opencode agent '$want' on '$model' PROVEN by canary dispatch (slots: ${slots}; read-only guarantee in place)"
     elif [[ "$probe_rc" -eq 2 ]]; then
@@ -141,15 +147,17 @@ preflight_opencode_agents() {
   done < <(opencode_canary_targets)
 }
 
-# Distinct {agent, model} pairs across every opencode slot, as
-# `agent<TAB>model<TAB>slot_ids`. Naming the slots keeps a failure actionable: the
+# Distinct {agent, model, variant} triples across every opencode slot, as
+# `agent<TAB>model<TAB>slot_ids<TAB>variant`. Variant is part of the key because
+# adapter_opencode passes it on the real turn: two slots sharing an agent and a
+# model but differing in variant are two different dispatches to prove. Naming the slots keeps a failure actionable: the
 # pair alone does not say which roster entry to go and fix.
 opencode_canary_targets() {
   roster_slots_json | jq -r '
     [.[] | select(.harness == "opencode")]
-    | group_by([.agent, .model])
+    | group_by([.agent, .model, .variant])
     | .[]
-    | [(.[0].agent // ""), (.[0].model // ""), ([.[].id] | join(","))]
+    | [(.[0].agent // ""), (.[0].model // ""), ([.[].id] | join(",")), (.[0].variant // "")]
     | @tsv'
 }
 
@@ -165,7 +173,14 @@ run_check_harnesses() {
     local tool="$1"
     local help_cmd="$2"
     local flag="$3"
-    if printf '%s' "$help_cmd" | bash 2>&1 | grep -q -- "$flag"; then
+    # Match the flag as a whole token, not a substring. `grep -q -- --json`
+    # also matches `--json-schema`, `--json-output` or the word inside a prose
+    # sentence, so a CLI that had renamed --json to --json-schema would report
+    # green. Flags are delimited by whitespace, '=' or ',' in every help text we
+    # parse; require one of those (or a line edge) on each side.
+    local flag_re
+    flag_re="$(printf '%s' "$flag" | sed -e 's/[][\.*^$(){}?+|/]/\\&/g')"
+    if printf '%s' "$help_cmd" | bash 2>&1 | grep -qE -- "(^|[[:space:]])${flag_re}([[:space:],=]|\$)"; then
       ok "$tool $flag"
     else
       warn "$tool is missing the flag this port depends on: $flag"
@@ -226,8 +241,8 @@ run_check_harnesses() {
     # Same coverage as preflight_opencode_agents: one dispatch per distinct
     # {agent, model} pair, each on the slot's own model. A diagnostic that probes
     # fewer configurations than the debate will use reports green on an untested one.
-    local want_agent want_model want_slots
-    while IFS=$'\t' read -r want_agent want_model want_slots; do
+    local want_agent want_model want_slots want_variant
+    while IFS=$'\t' read -r want_agent want_model want_slots want_variant; do
       [[ -n "$want_agent" ]] || continue
       if [[ -z "$want_model" ]]; then
         # Skip only this canary. Returning early here would jump past the
@@ -237,7 +252,7 @@ run_check_harnesses() {
       fi
       info "proving opencode agent '$want_agent' by canary dispatch on $want_model (slots: ${want_slots}; a few tokens, the listing is too flaky to decide on)"
       local probe_rc=0
-      opencode_agent_proven "$want_agent" "$want_model" || probe_rc=$?
+      opencode_agent_proven "$want_agent" "$want_model" "$want_variant" || probe_rc=$?
       if [[ "$probe_rc" -eq 0 ]]; then
         ok "opencode agent '$want_agent' on '$want_model' PROVEN (read-only guarantee in place)"
       elif [[ "$probe_rc" -eq 2 ]]; then

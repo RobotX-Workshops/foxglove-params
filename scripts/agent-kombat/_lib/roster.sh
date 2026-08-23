@@ -192,7 +192,7 @@ apply_model_overrides() {
     [ (.debaters[]?.id), (.judge?.id // empty), (.synthesizer?.id // empty) ] | .[]
   ')"
   local requested
-  for requested in "${!MODEL_OVERRIDE[@]}"; do
+  for requested in ${MODEL_OVERRIDE[@]+"${!MODEL_OVERRIDE[@]}"}; do
     printf '%s\n' "$known" | grep -qxF "$requested" \
       || die "--model names slot '$requested', which is not in roster '$(roster_get '.id // "?"')'. Known slots: $(printf '%s' "$known" | tr '\n' ' ')"
   done
@@ -234,8 +234,10 @@ validate_roster() {
 
   # Duplicate slot ids would collide in artifact paths, silently overwriting one
   # participant's plan with another's.
-  local dupes
-  dupes="$(printf '%s\n' "${SLOT_ORDER[@]}" | sort | uniq -d | tr '\n' ' ')"
+  local dupes=""
+  if [[ "${#SLOT_ORDER[@]}" -gt 0 ]]; then
+    dupes="$(printf '%s\n' "${SLOT_ORDER[@]}" | sort | uniq -d | tr '\n' ' ')"
+  fi
   [[ -z "${dupes// /}" ]] || errors+=("duplicate slot ids: $dupes")
 
   local slots

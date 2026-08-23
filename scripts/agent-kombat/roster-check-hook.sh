@@ -114,7 +114,11 @@ PYINST
       status=1
     fi
   else
-    printf 'skip: jsonschema not importable from .venv; roster.schema.json not checked\n'
+    # Fail rather than pass: a hook that goes green when it could not actually
+    # validate reports "roster is fine" on every commit where the tooling is
+    # missing, which is exactly when a bad roster slips through.
+    printf 'FAIL: jsonschema not importable from .venv; roster.schema.json could not be checked\n' >&2
+    status=1
   fi
 fi
 

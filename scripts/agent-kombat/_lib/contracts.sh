@@ -337,6 +337,7 @@ validate_judge_verdict() {
   local file="$1"
   jq -e '
     (.converged | type == "boolean") and
+    (.converged_participants | type == "array") and
     (.unresolved_issues | type == "array") and
     (.agreements_lacking_justification | type == "array") and
     (.recommendation == "synthesize" or .recommendation == "another_round") and

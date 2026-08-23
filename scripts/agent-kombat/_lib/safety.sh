@@ -99,8 +99,14 @@ enforce_workdir_location() {
   # Reject a symlink anywhere in the existing chain even when it currently points
   # inside tmp/. The target of a symlink can be repointed between this check and
   # the writes that follow, so allowing one makes containment a race.
+  # Terminate at the UNRESOLVED tmp path too, not only at the resolved one.
+  # When $REPO_ROOT/tmp is itself reached via a symlink, $tmp_root is the
+  # resolved location, so the walk never matches it and keeps climbing past the
+  # repository boundary -- inspecting (and potentially rejecting on) parent
+  # directories that have nothing to do with the workdir.
+  local tmp_unresolved="$REPO_ROOT/tmp"
   local probe="$resolved"
-  while [[ "$probe" != "/" && -n "$probe" && "$probe" != "$tmp_root" ]]; do
+  while [[ "$probe" != "/" && -n "$probe" && "$probe" != "$tmp_root" && "$probe" != "$tmp_unresolved" ]]; do
     if [[ -L "$probe" ]]; then
       die "workdir path component is a symlink: $probe. Containment cannot be guaranteed through a link whose target may change after this check."
     fi
@@ -110,7 +116,7 @@ enforce_workdir_location() {
   # Do not merely assume tmp/ is ignored -- assert it, so a change to .gitignore
   # cannot quietly turn every future debate into a committable artifact.
   if ! (cd "$REPO_ROOT" && git check-ignore -q tmp 2>/dev/null); then
-    die "$tmp_root is not gitignored; refusing to write debate artifacts there. Add 'tmp/' to .gitignore."
+    die "$tmp_root is not gitignored; refusing to write debate artifacts there. Add 'tmp' to .gitignore (no trailing slash: this check runs before the directory exists, and 'tmp/' only matches a directory that is already there)."
   fi
 }
 

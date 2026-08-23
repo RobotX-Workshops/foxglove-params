@@ -118,6 +118,11 @@ if [[ "$phase" != "synthesis" ]]; then
   [[ -n "$schema_file" ]] || fail "$phase call passed no --output-schema"
   [[ -f "$schema_file" ]] || fail "--output-schema file does not exist: $schema_file"
   jq -e 'type == "object"' "$schema_file" >/dev/null || fail "--output-schema is not a JSON object"
+else
+  # An empty schema is the driver's signal for "markdown, not JSON". Only the
+  # non-synthesis direction was asserted, so a regression that started handing
+  # synthesis a schema would have gone unnoticed by the fake.
+  [[ -z "$schema_file" ]] || fail "synthesis call passed --output-schema ($schema_file); synthesis must be schema-free"
 fi
 
 case "$prompt" in
@@ -131,14 +136,14 @@ jq -cn '{type: "turn.started"}'
 
 case "$phase" in
   round0)
-    jq -n --arg md "# Plan from a codex participant
+    jq -n --arg md "# Plan from a debate participant
 
 ## Approach
 Wire the endpoint into the existing health handler and probe dependencies.
 " '{plan_markdown: $md}' >"$last_message"
     ;;
   debate)
-    jq -n --arg md "# Revised plan from a codex participant
+    jq -n --arg md "# Revised plan from a debate participant
 
 ## Approach
 Wire the endpoint into the health handler; the probe fails closed.

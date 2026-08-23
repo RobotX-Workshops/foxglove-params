@@ -177,6 +177,21 @@ run_judge_attempt() {
   local schema_file="$target/schemas/judge.schema.json"
   local prefix="$target/rounds/judge-${attempt}"
 
+  # Resume guard, mirroring the slot_turn_valid check the debate rounds already
+  # do. Without it, a run that died after the judge answered but before
+  # synthesis finished re-dispatches the judge on --resume and pays for a
+  # verdict it already holds. Attempt-scoped, because each attempt writes its
+  # own judge-${attempt}.turn.json -- so reuse can never serve attempt N's
+  # verdict as attempt M's.
+  if [[ -s "${prefix}.turn.json" ]] && validate_judge_verdict "${prefix}.turn.json" 2>/dev/null; then
+    info "judge attempt $attempt already has a valid verdict; reusing it instead of re-dispatching"
+    log_event "$target" "judge.call.reused" "$(jq -n --argjson attempt "$attempt" \
+      --arg slot "$JUDGE_ID" '{attempt: $attempt, slot: $slot}')"
+    cp "${prefix}.turn.json" "$target/judge-verdict.json"
+    update_config "$target" --arg artifact "judge-verdict.json" '.last_successful_artifact = $artifact'
+    return 0
+  fi
+
   build_round_summary_json "$target" >"${prefix}-round-summary.json"
   build_objections_json "$target" >"${prefix}-objections.json"
   build_judge_prompt "$target" "${prefix}-round-summary.json" "${prefix}-objections.json" "$schema_file" \
