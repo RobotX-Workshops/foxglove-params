@@ -167,6 +167,14 @@ normalise_path() {
   # flag every unrelated string `out=` elsewhere (SC2178/SC2128).
   local -a _np_parts=()
   local IFS='/'
+  # Word-splitting on '/' is wanted here; PATHNAME EXPANSION is not. Without
+  # noglob a component containing a glob character is expanded against the
+  # filesystem: `/repo/tmp/a*b/c` with a*b matching aXb and aYb normalises to
+  # `/repo/tmp/aXb/aYb/c`. enforce_workdir_location would then validate a path
+  # that is not the one later created. Measured, not theorised.
+  local _np_glob_was_off=0
+  [[ -o noglob ]] && _np_glob_was_off=1
+  set -f
   for part in $path; do
     case "$part" in
       '' | '.') continue ;;
@@ -184,6 +192,7 @@ normalise_path() {
       *) _np_parts+=("$part") ;;
     esac
   done
+  [[ "$_np_glob_was_off" -eq 1 ]] || set +f
   printf '/%s\n' "$(
     IFS='/'
     printf '%s' "${_np_parts[*]:-}"

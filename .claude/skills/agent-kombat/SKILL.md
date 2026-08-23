@@ -52,7 +52,10 @@ make kombat-dry-run REQ="anything"           # writes every prompt, calls nothin
 
 `--check-harnesses` is the one to run on a new machine: it greps each CLI's own
 `--help` for every flag the adapters depend on, so a vendor renaming a flag is a
-clear message rather than a mid-debate failure.
+clear message rather than a mid-debate failure. The flag greps are free, but on
+a roster with an opencode slot it also proves the read-only agent with a canary
+dispatch -- a real opencode call, a few tokens. `--roster-check`, `--dry-run`
+and `smoke.sh` make no model calls at all.
 
 ## Cost — read before you type
 

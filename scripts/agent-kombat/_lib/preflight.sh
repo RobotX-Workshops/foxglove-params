@@ -186,7 +186,13 @@ opencode_canary_targets() {
 # --check-harnesses: the three CLIs ship on independent release cadences and any
 # of them can rename a flag out from under us. This greps each --help for every
 # flag the adapters depend on, so a breaking upstream change is a clear message
-# instead of a mid-debate failure. Costs nothing.
+# instead of a mid-debate failure.
+#
+# NOT free: the flag greps are, but this function also proves the opencode agent
+# with a canary dispatch, which is a real opencode call on the slot's own model.
+# It is a few tokens rather than a debate, but "costs nothing" was wrong and
+# people plan around that claim. Rosters with no opencode slot skip the canary
+# and are genuinely free.
 run_check_harnesses() {
   local failures=0
   local harness
