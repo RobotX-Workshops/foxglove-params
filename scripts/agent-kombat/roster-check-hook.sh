@@ -21,8 +21,10 @@ status=0
 # Scratch file for driver stderr. Deliberately NOT under $SCRIPT_DIR: this hook
 # runs pre-commit, and a stray .roster-check.err inside the source tree can be
 # staged by a `git add -A` in another hook. The trap covers the early-exit and
-# interrupt paths the old unconditional `rm -f` missed.
-ERR_FILE="$(mktemp -t agent-kombat-roster-check)"
+# interrupt paths the old unconditional `rm -f` missed. The explicit X's in the
+# template keep it portable across BSD and GNU mktemp (GNU rejects `-t` with a
+# bare prefix).
+ERR_FILE="$(mktemp "${TMPDIR:-/tmp}/agent-kombat-roster-check.XXXXXX")"
 cleanup_err_file() { rm -f "$ERR_FILE"; }
 trap cleanup_err_file EXIT INT TERM
 
