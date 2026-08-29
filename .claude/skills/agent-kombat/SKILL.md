@@ -41,11 +41,10 @@ Only the harnesses your chosen roster actually names are checked, so a machine
 without `codex` can still run `--roster duo`, and one without `opencode` can run
 `--roster pair`.
 
-Verify a machine, all free, no model calls:
+Verify a machine -- these three make **no** model calls:
 
 ```bash
 make kombat-roster-check                     # every preset parses and validates
-bash scripts/agent-kombat/agent-kombat.sh --check-harnesses   # each CLI still has the flags we use
 make kombat-smoke                            # full loop against fake harnesses
 make kombat-dry-run REQ="anything"           # writes every prompt, calls nothing
 ```
@@ -54,8 +53,9 @@ make kombat-dry-run REQ="anything"           # writes every prompt, calls nothin
 `--help` for every flag the adapters depend on, so a vendor renaming a flag is a
 clear message rather than a mid-debate failure. The flag greps are free, but on
 a roster with an opencode slot it also proves the read-only agent with a canary
-dispatch -- a real opencode call, a few tokens. `--roster-check`, `--dry-run`
-and `smoke.sh` make no model calls at all.
+dispatch -- a real opencode call, a few tokens -- so it is **not** one of the
+free commands above. `--roster-check`, `--dry-run` and `smoke.sh` make no model
+calls at all.
 
 ## Cost — read before you type
 

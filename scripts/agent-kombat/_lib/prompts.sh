@@ -83,6 +83,23 @@ append_inline_schema() {
   printf -- '---END REQUIRED JSON SCHEMA---\n'
 }
 
+# Emit a model-generated block, escaping any line that could be misread as one
+# of this tool's own ---BEGIN/---END--- delimiters. A debater that echoes the
+# closing marker of its own block would otherwise close the untrusted boundary
+# early and have everything after it read as instructions. Prefixing the line
+# with a backslash keeps it visually intact but breaks the delimiter match, so
+# the framing ("ignore everything between the markers") stays correct.
+emit_model_block() {
+  local file="$1"
+  local line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      ---*) printf '\\%s\n' "$line" ;;
+      *)    printf '%s\n' "$line" ;;
+    esac
+  done < "$file"
+}
+
 build_round0_prompt() {
   local slot_id="$1"
   local target="$2"
@@ -150,14 +167,14 @@ Here is your current $CONTRACT_NOUN:
 
 ---BEGIN YOUR CURRENT ARTIFACT---
 PROMPT
-  cat "$target/rounds/r${round}-input-${slot_id}.md"
+  emit_model_block "$target/rounds/r${round}-input-${slot_id}.md"
   printf '%s\n\n' '---END YOUR CURRENT ARTIFACT---'
 
   for peer in "${peers[@]}"; do
     local peer_label
     peer_label="$(slot_field "$peer" '.label')"
     printf -- '---BEGIN COMPETING ARTIFACT (%s)---\n' "$peer_label"
-    cat "$target/rounds/r${round}-input-${peer}.md"
+    emit_model_block "$target/rounds/r${round}-input-${peer}.md"
     printf -- '---END COMPETING ARTIFACT (%s)---\n\n' "$peer_label"
   done
 
@@ -197,7 +214,7 @@ PROMPT
 
   if [[ -n "$focus_file" && -s "$focus_file" ]]; then
     printf '\nAdditional judge focus for this replay round:\n\n---BEGIN FOCUS---\n'
-    cat "$focus_file"
+    emit_model_block "$focus_file"
     printf '%s\n' '---END FOCUS---'
   fi
 }
@@ -270,15 +287,15 @@ PROMPT
     local label
     label="$(slot_field "$id" '.label')"
     printf 'Final %s %s:\n---BEGIN %s ARTIFACT---\n' "$label" "$CONTRACT_NOUN" "$label"
-    cat "$target/plan-${id}.md"
+    emit_model_block "$target/plan-${id}.md"
     printf -- '---END %s ARTIFACT---\n\n' "$label"
   done
 
   printf 'Round summary JSON:\n---BEGIN ROUND SUMMARY---\n'
-  cat "$round_summary_file"
+  emit_model_block "$round_summary_file"
   printf '%s\n\n' '---END ROUND SUMMARY---'
   printf 'Objections ledger JSON:\n---BEGIN OBJECTIONS---\n'
-  cat "$objections_file"
+  emit_model_block "$objections_file"
   printf '%s\n' '---END OBJECTIONS---'
 }
 
@@ -317,13 +334,13 @@ PROMPT
     local label
     label="$(slot_field "$id" '.label')"
     printf 'Latest %s %s:\n---BEGIN %s ARTIFACT---\n' "$label" "$CONTRACT_NOUN" "$label"
-    cat "$target/plan-${id}.md"
+    emit_model_block "$target/plan-${id}.md"
     printf -- '---END %s ARTIFACT---\n\n' "$label"
   done
 
   printf 'Judge verdict:\n---BEGIN JUDGE VERDICT---\n'
   if [[ -f "$target/judge-verdict.json" ]]; then
-    cat "$target/judge-verdict.json"
+    emit_model_block "$target/judge-verdict.json"
   else
     printf '%s\n' '{"judge_enabled":false,"note":"No independent judge was run."}'
   fi
