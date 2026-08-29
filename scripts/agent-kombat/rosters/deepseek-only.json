@@ -1,0 +1,38 @@
+{
+  "id": "deepseek-only",
+  "description": "Cheap plumbing test, not a serious debate. This preset exists ONLY to exercise the fenced_json extraction path against a real model: opencode has no structured-output support at all (no --output-schema), so both debaters must be parsed by fencing JSON out of free-form prose, and this is the only roster where every debater takes that path. The two debaters run different DeepSeek V4 tiers (Flash and Pro) so the exchange is not literally self-play, and the judge runs on a deliberately cheap Claude Haiku model with native structured output -- enough to drive the recommendation enum and the control flow, and nothing more. Flash is the cheap tier; Pro is a flagship, so a full run is inexpensive but not free. One round, no extra rounds. Do not use it to decide anything you care about; use rosters/trio.json or rosters/duo.json for that.",
+  "rounds": 1,
+  "max_extra_rounds": 0,
+  "debaters": [
+    {
+      "id": "ds-flash",
+      "label": "Participant A",
+      "harness": "opencode",
+      "model": "deepseek/deepseek-v4-flash",
+      "structured_output": "fenced_json",
+      "idle_timeout_seconds": 1200,
+      "variant": "high",
+      "agent": "kombat-debater",
+      "max_reask": 1
+    },
+    {
+      "id": "ds-pro",
+      "label": "Participant B",
+      "harness": "opencode",
+      "model": "deepseek/deepseek-v4-pro",
+      "structured_output": "fenced_json",
+      "idle_timeout_seconds": 1200,
+      "variant": "high",
+      "agent": "kombat-debater",
+      "max_reask": 1
+    }
+  ],
+  "judge": {
+    "id": "judge",
+    "label": "Judge",
+    "harness": "claude",
+    "model": "claude-haiku-4-5-20251001",
+    "structured_output": "native",
+    "idle_timeout_seconds": 900
+  }
+}

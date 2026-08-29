@@ -1,0 +1,35 @@
+{
+  "id": "duo",
+  "description": "TWO MODELS TOTAL: Claude Opus 5 versus opencode DeepSeek V4 Pro over 2 rounds (up to 1 extra round on the judge's request), with Opus also acting as judge in a separate fresh session. The cheapest useful roster, and the only one that needs just two model vendors -- reach for it when Codex is unavailable or when the debate transcript matters more than the verdict. The trade-off is explicit: the judge shares Opus's priors with debater 'opus', so it is session-independent but NOT model-independent and may systematically favour that plan. The driver prints that warning on every run. Use rosters/trio.json when the verdict itself is the deliverable and must be defensible. Labels are deliberately anonymous ('Participant A/B') so no participant, and no judge, learns which model wrote which plan.",
+  "rounds": 2,
+  "max_extra_rounds": 1,
+  "debaters": [
+    {
+      "id": "opus",
+      "label": "Participant A",
+      "harness": "claude",
+      "model": "claude-opus-5",
+      "structured_output": "native",
+      "idle_timeout_seconds": 900
+    },
+    {
+      "id": "deepseek",
+      "label": "Participant B",
+      "harness": "opencode",
+      "model": "deepseek/deepseek-v4-pro",
+      "structured_output": "fenced_json",
+      "idle_timeout_seconds": 1200,
+      "variant": "high",
+      "agent": "kombat-debater",
+      "max_reask": 1
+    }
+  ],
+  "judge": {
+    "id": "judge",
+    "label": "Judge",
+    "harness": "claude",
+    "model": "claude-opus-5",
+    "structured_output": "native",
+    "idle_timeout_seconds": 900
+  }
+}

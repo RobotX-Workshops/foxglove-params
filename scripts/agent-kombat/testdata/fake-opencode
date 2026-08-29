@@ -1,0 +1,273 @@
+#!/usr/bin/env bash
+#
+# Fake `opencode` for the offline smoke test.
+#
+# This is the fake that matters most, because opencode is the only harness with
+# no structured-output enforcement, so the extraction and re-ask path is the
+# riskiest code in the port. On its FIRST debate turn this fake deliberately
+# returns unfenced prose with no JSON at all, which forces the adapter through
+# the re-ask path -- smoke.sh asserts that it fired exactly once.
+#
+# It also asserts the two argv rules that cost real debugging time upstream of
+# here: the message positional MUST precede -f, and --agent must be set (it is
+# the only read-only guarantee opencode offers).
+#
+set -euo pipefail
+
+fail() {
+  printf 'fake-opencode: ASSERTION FAILED: %s\n' "$*" >&2
+  exit 64
+}
+
+STATE_DIR="${FAKE_HARNESS_STATE:-/tmp}"
+
+if [[ "${1:-}" == "--version" ]]; then
+  printf '0.0.0-smoke\n'
+  exit 0
+fi
+
+# `opencode export <session>` -- the verified fallback the adapter uses when the
+# event-stream accessor comes up empty.
+if [[ "${1:-}" == "export" ]]; then
+  session="${2:-}"
+  [[ -n "$session" ]] || fail "export without a session id"
+  printf 'Exporting session: %s\n' "$session"
+  payload_file="$STATE_DIR/fake-opencode-last-payload"
+  payload='{"ok":false,"note":"nothing recorded"}'
+  [[ ! -f "$payload_file" ]] || payload="$(cat "$payload_file")"
+  jq -n --arg sid "$session" --arg text "$payload" '{
+    info: {id: $sid},
+    messages: [
+      {info: {role: "user"}, parts: [{type: "text", text: "prompt"}]},
+      {info: {role: "assistant"}, parts: [{type: "text", text: $text}]}
+    ]
+  }'
+  exit 0
+fi
+
+if [[ "${1:-}" == "agent" && "${2:-}" == "list" ]]; then
+  printf 'kombat-debater (primary)\nbuild (primary)\n'
+  exit 0
+fi
+
+[[ "${1:-}" == "run" ]] || fail "expected 'opencode run', got '${1:-}'"
+shift
+
+message=""
+prompt_file=""
+agent=""
+model=""
+variant=""
+session=""
+format=""
+saw_file_flag=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -f | --file)
+      saw_file_flag=1
+      prompt_file="$2"
+      shift 2
+      ;;
+    --agent)
+      agent="$2"
+      shift 2
+      ;;
+    -m | --model)
+      model="$2"
+      shift 2
+      ;;
+    --variant)
+      variant="$2"
+      shift 2
+      ;;
+    -s | --session)
+      session="$2"
+      shift 2
+      ;;
+    --format)
+      format="$2"
+      shift 2
+      ;;
+    --fork)
+      fail "--fork must never be passed: it branches the session and silently loses continuity"
+      ;;
+    -c | --continue)
+      fail "--continue must never be passed: it resolves the most recent session GLOBALLY, which across concurrent slots is cross-talk"
+      ;;
+    --auto)
+      fail "--auto must never be passed: it auto-approves every permission that is not explicitly denied, defeating the read-only agent"
+      ;;
+    -*)
+      fail "unexpected flag: $1"
+      ;;
+    *)
+      if [[ -z "$message" ]]; then
+        [[ "$saw_file_flag" -eq 0 ]] \
+          || fail "the message positional must come BEFORE -f; 'opencode run -f FILE MSG' misparses and swallows the message as a second file"
+        message="$1"
+      else
+        fail "unexpected second positional: $1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+[[ -n "$message" ]] || fail "no message positional"
+
+# The preflight canary: the driver proves `--agent` resolves by dispatching it,
+# because `opencode agent list` races registration and a listing cannot observe
+# the code path the debate will actually take. The canary carries its instruction
+# as the positional (no -f, no --variant) and is the cheapest possible turn --
+# but it MUST still pass --agent, since proving something about a different agent
+# than the debate uses proves nothing at all.
+if [[ "$message" == "Reply with exactly: ok" ]]; then
+  [[ -n "$agent" ]] || fail "canary dispatched without --agent: proving agent resolution is its only purpose"
+  [[ -n "$model" ]] || fail "canary dispatched without -m/--model"
+  [[ -z "$prompt_file" ]] || fail "canary should not attach a prompt file"
+  if [[ "${FAKE_OPENCODE_CANARY_FALLBACK:-0}" == "1" ]]; then
+    # Reproduce opencode's real fail-OPEN behaviour for an unresolvable agent:
+    # warn, silently substitute the write-capable `build` agent, exit 0. The
+    # driver must refuse the whole run on this, not proceed.
+    printf 'agent "%s" not found. Falling back to default agent\n' "$agent" >&2
+    exit 0
+  fi
+  if [[ "${FAKE_OPENCODE_CANARY_MODEL_REJECT:-0}" == "1" ]]; then
+    # The OTHER canary failure, and since the canary now carries the slot's real
+    # model, the likelier one: the agent resolves fine and the provider rejects the
+    # model id. No "Falling back" line, nonzero exit -- exactly what a bogus id
+    # returns in practice. The driver must NOT blame the agent file for this.
+    printf '{"type":"error","error":{"name":"UnknownError","data":{"message":"Unexpected server error."}}}\n'
+    exit 1
+  fi
+  jq -cn --arg sid "00000000-opencode-canary-0001" '{
+    type: "text", timestamp: 0, sessionID: $sid,
+    part: {id: "prt_canary", messageID: "msg_canary", sessionID: $sid, type: "text", text: "ok"}
+  }'
+  exit 0
+fi
+
+[[ -n "$prompt_file" ]] || fail "missing -f prompt file"
+[[ -f "$prompt_file" ]] || fail "prompt file does not exist: $prompt_file"
+[[ -n "$agent" ]] || fail "missing --agent: it is the only read-only guarantee opencode offers"
+[[ "$agent" == "kombat-debater" ]] || fail "expected --agent kombat-debater, got '$agent'"
+[[ -n "$model" ]] || fail "missing -m/--model"
+[[ "$format" == "json" ]] || fail "expected --format json, got '$format'"
+# `variant` was parsed and never checked, so the fake silently did not verify that
+# --variant reaches opencode at all -- and this file exists precisely to assert the
+# argv. Every shipped roster with an opencode slot sets it (reasoning effort), so
+# an empty value here means the driver dropped it.
+[[ -n "$variant" ]] || fail "missing --variant: the roster sets it and the driver must forward it"
+
+prompt="$(cat "$prompt_file")"
+
+phase="unknown"
+case "$prompt" in
+  *"Reply with ONLY the JSON object"*) phase="reask" ;;
+  *"This is Round 0"*) phase="round0" ;;
+  *"You are an independent judge"*) phase="judge" ;;
+  *"Return JSON that matches the debater schema"*) phase="debate" ;;
+  *"Return only Markdown"*) phase="synthesis" ;;
+esac
+[[ "$phase" != "unknown" ]] || fail "could not classify the prompt phase"
+
+case "$prompt" in
+  *"claude/"* | *"deepseek/"* | *"gpt-5"*) fail "prompt leaks a harness/model identity" ;;
+esac
+
+# Round-0 and debate prompts for a fenced_json slot must carry the schema inline,
+# because the harness cannot be handed one.
+if [[ "$phase" == "round0" || "$phase" == "debate" ]]; then
+  case "$prompt" in
+    *"BEGIN REQUIRED JSON SCHEMA"*) ;;
+    *) fail "$phase prompt for a fenced_json slot carries no inline schema" ;;
+  esac
+fi
+
+session_id="${session:-00000000-opencode-session-0001}"
+
+payload=""
+case "$phase" in
+  round0)
+    payload="$(jq -c -n --arg md "# Plan from a debate participant
+
+## Approach
+Expose the endpoint and check both dependencies with a bounded timeout.
+" '{plan_markdown: $md}')"
+    ;;
+  debate | reask)
+    payload="$(jq -c -n --arg md "# Revised plan from a debate participant
+
+## Approach
+Expose the endpoint; bounded dependency checks; fail closed.
+" '{
+      strengths_to_steal: [{from: "Participant A", strength: "reuses the existing router"}],
+      revised_plan_markdown: $md,
+      critique: [{target: "Participant A", finding: "silent on the timeout budget"}],
+      could_not_fault: [],
+      unresolved_issues: [{
+        issue: "whether readiness should also gate on migrations",
+        why_it_matters: "serving before migrations land yields 500s",
+        suggested_test_or_decision_rule: "start with a pending migration and assert a 503"
+      }]
+    }')"
+    ;;
+  judge)
+    payload='{"converged":true,"unresolved_issues":[],"agreements_lacking_justification":[],"recommendation":"synthesize","focus_for_next_round":null,"reasoning":"argued through"}'
+    ;;
+  synthesis)
+    payload='# Final plan (opencode synthesis)'
+    ;;
+esac
+printf '%s' "$payload" >"$STATE_DIR/fake-opencode-last-payload"
+
+# Emits the REAL shape opencode 1.18.8 uses, captured from a live session and
+# kept as testdata/fixtures/opencode-events-real.jsonl:
+#
+#   {"type":"text","timestamp":N,"sessionID":"ses_...","part":{...,"text":"..."}}
+#
+# Note there is NO top-level `.text`. That is the trap: an extractor written
+# against the obvious `.text` reads empty on every real turn and fails silently.
+# Emitting the real shape here means the smoke test exercises the same accessor
+# branch production does, instead of a friendlier one that never occurs.
+emit_text() {
+  jq -cn --arg sid "$session_id" --arg text "$1" '{
+    type: "text",
+    timestamp: 0,
+    sessionID: $sid,
+    part: {id: "prt_fake", messageID: "msg_fake", sessionID: $sid, type: "text", text: $text}
+  }'
+}
+
+jq -cn --arg sid "$session_id" '{type: "session.status", timestamp: 0, sessionID: $sid, status: "running"}'
+
+if [[ "$phase" == "debate" ]]; then
+  # First debate turn only: return prose with no JSON, to drive the re-ask path.
+  counter="$STATE_DIR/fake-opencode-debate-count"
+  n=0
+  [[ ! -f "$counter" ]] || n="$(cat "$counter")"
+  n="$((n + 1))"
+  printf '%s\n' "$n" >"$counter"
+  if [[ "$n" -eq 1 ]]; then
+    emit_text "Sure! Here is my thinking about the plan. I looked at both competing artifacts and I have opinions, but I am going to explain them in prose instead of returning the JSON object you asked for."
+    jq -cn --arg sid "$session_id" '{type: "session.idle", timestamp: 0, sessionID: $sid}'
+    exit 0
+  fi
+fi
+
+if [[ "$phase" == "synthesis" ]]; then
+  emit_text "$payload"
+else
+  # Wrap the JSON in a fenced block with a prose preamble: the shape an opencode
+  # model actually tends to produce, which is exactly what layer (ii) of the
+  # extractor is for.
+  emit_text "Here is the JSON you asked for:
+
+\`\`\`json
+$payload
+\`\`\`
+"
+fi
+
+jq -cn --arg sid "$session_id" '{type: "session.idle", timestamp: 0, sessionID: $sid}'

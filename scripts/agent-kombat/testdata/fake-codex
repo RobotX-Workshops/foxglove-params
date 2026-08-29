@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+#
+# Fake `codex` for the offline smoke test. Asserts the exact argv, including the
+# two things that are easy to get wrong and expensive to get wrong:
+#
+#   * `codex exec resume` has no -s/--sandbox, so the sandbox MUST arrive as
+#     -c 'sandbox_mode="read-only"' on the resume path (verified on 0.145.0).
+#   * model_reasoning_effort must be pinned, or the real CLI silently inherits
+#     whatever is in ~/.codex/config.toml.
+#
+set -euo pipefail
+
+fail() {
+  printf 'fake-codex: ASSERTION FAILED: %s\n' "$*" >&2
+  exit 64
+}
+
+if [[ "${1:-}" == "--version" ]]; then
+  printf 'fake-codex-cli 0.0.0 (smoke)\n'
+  exit 0
+fi
+
+[[ "${1:-}" == "exec" ]] || fail "expected 'codex exec', got '${1:-}'"
+shift
+
+mode="new"
+if [[ "${1:-}" == "resume" ]]; then
+  mode="resume"
+  shift
+fi
+
+model=""
+sandbox=""
+sandbox_via_config=0
+effort=""
+skip_git=0
+json=0
+schema_file=""
+last_message=""
+session_id=""
+prompt=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --model | -m)
+      model="$2"
+      shift 2
+      ;;
+    --sandbox | -s)
+      sandbox="$2"
+      shift 2
+      ;;
+    -c)
+      case "$2" in
+        'sandbox_mode="read-only"') sandbox_via_config=1 ;;
+        model_reasoning_effort=*) effort="${2#model_reasoning_effort=}" ;;
+        *) fail "unexpected -c override: $2" ;;
+      esac
+      shift 2
+      ;;
+    --skip-git-repo-check)
+      skip_git=1
+      shift
+      ;;
+    --json)
+      json=1
+      shift
+      ;;
+    --output-schema)
+      schema_file="$2"
+      shift 2
+      ;;
+    --output-last-message | -o)
+      last_message="$2"
+      shift 2
+      ;;
+    -*)
+      fail "unexpected flag: $1"
+      ;;
+    *)
+      if [[ "$mode" == "resume" && -z "$session_id" ]]; then
+        session_id="$1"
+      else
+        prompt="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+[[ -n "$model" ]] || fail "missing --model"
+[[ "$skip_git" -eq 1 ]] || fail "missing --skip-git-repo-check"
+[[ "$json" -eq 1 ]] || fail "missing --json"
+[[ -n "$last_message" ]] || fail "missing --output-last-message"
+[[ -n "$prompt" ]] || fail "no prompt positional"
+[[ -n "$effort" ]] || fail "model_reasoning_effort was not pinned via -c; the real CLI would inherit the global default"
+
+if [[ "$mode" == "resume" ]]; then
+  [[ -n "$session_id" ]] || fail "resume without a session id"
+  [[ "$sandbox_via_config" -eq 1 ]] \
+    || fail "resume must pass -c 'sandbox_mode=\"read-only\"' (codex exec resume has no --sandbox)"
+  [[ -z "$sandbox" ]] || fail "resume passed --sandbox, which codex exec resume does not accept"
+else
+  [[ "$sandbox" == "read-only" ]] || fail "expected --sandbox read-only, got '$sandbox'"
+  session_id="00000000-codex-thread-0001"
+fi
+
+phase="unknown"
+case "$prompt" in
+  *"This is Round 0"*) phase="round0" ;;
+  *"You are an independent judge"*) phase="judge" ;;
+  *"Return JSON that matches the debater schema"*) phase="debate" ;;
+  *"Return only Markdown"*) phase="synthesis" ;;
+esac
+[[ "$phase" != "unknown" ]] || fail "could not classify the prompt phase"
+
+if [[ "$phase" != "synthesis" ]]; then
+  [[ -n "$schema_file" ]] || fail "$phase call passed no --output-schema"
+  [[ -f "$schema_file" ]] || fail "--output-schema file does not exist: $schema_file"
+  jq -e 'type == "object"' "$schema_file" >/dev/null || fail "--output-schema is not a JSON object"
+else
+  # An empty schema is the driver's signal for "markdown, not JSON". Only the
+  # non-synthesis direction was asserted, so a regression that started handing
+  # synthesis a schema would have gone unnoticed by the fake.
+  [[ -z "$schema_file" ]] || fail "synthesis call passed --output-schema ($schema_file); synthesis must be schema-free"
+fi
+
+case "$prompt" in
+  *"claude/"* | *"deepseek/"* | *"gpt-5"*) fail "prompt leaks a harness/model identity" ;;
+esac
+
+# JSONL event stream on stdout, exactly the shape the adapter's session-id
+# extractor looks for.
+jq -cn --arg tid "$session_id" '{type: "thread.started", thread_id: $tid}'
+jq -cn '{type: "turn.started"}'
+
+case "$phase" in
+  round0)
+    jq -n --arg md "# Plan from a debate participant
+
+## Approach
+Wire the endpoint into the existing health handler and probe dependencies.
+" '{plan_markdown: $md}' >"$last_message"
+    ;;
+  debate)
+    jq -n --arg md "# Revised plan from a debate participant
+
+## Approach
+Wire the endpoint into the health handler; the probe fails closed.
+" '{
+      strengths_to_steal: [{from: "Participant A", strength: "router seam is simpler"}],
+      revised_plan_markdown: $md,
+      critique: [{target: "Participant A", finding: "does not say what happens when Kafka is slow but reachable"}],
+      could_not_fault: [],
+      unresolved_issues: [{
+        issue: "timeout budget for the dependency probe",
+        why_it_matters: "an unbounded probe turns readiness into a hang",
+        suggested_test_or_decision_rule: "assert the handler returns within 2s with Kafka blackholed"
+      }]
+    }' >"$last_message"
+    ;;
+  judge)
+    jq -n '{
+      converged: true,
+      converged_participants: ["Participant A", "Participant B"],
+      unresolved_issues: [],
+      agreements_lacking_justification: [],
+      recommendation: "synthesize",
+      focus_for_next_round: null,
+      reasoning: "Disagreements were argued through on both sides."
+    }' >"$last_message"
+    ;;
+  synthesis)
+    printf '# Final plan (codex synthesis)\n\n## Approach\nAdd /healthz; fail closed.\n' >"$last_message"
+    ;;
+esac
+
+jq -cn '{type: "turn.completed"}'

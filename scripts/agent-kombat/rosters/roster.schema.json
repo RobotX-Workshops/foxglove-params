@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://galvany.de/schemas/agent-kombat/roster.schema.json",
+  "title": "agent-kombat roster",
+  "description": "Shape of a roster preset consumed by scripts/agent-kombat/agent-kombat.sh. A roster names the debaters, the judge and (optionally) the synthesizer, and fixes the round budget. Resolution precedence, first hit wins: --roster-file PATH, then --roster NAME (searched as ./.agent-kombat/rosters/NAME.json for a personal override, then scripts/agent-kombat/rosters/NAME.json for a repo preset), then AGENT_KOMBAT_ROSTER, then the built-in default 'trio-debate'. Per-slot model overrides resolve as --model SLOT_ID=MODEL, then AGENT_KOMBAT_MODEL_<SLOT_ID>, then this file; an unresolved model is a fatal error. This schema is strict (additionalProperties false at both levels) so a typo in a key name is a validation failure rather than a silently ignored setting.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "description",
+    "rounds",
+    "max_extra_rounds",
+    "debaters",
+    "judge"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+      "description": "Stable roster name. Should equal the file basename without .json, because --roster NAME resolves to NAME.json.",
+      "$comment": "The driver does not verify id == basename; keeping them equal is a convention for humans reading logs."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why this roster exists and when to pick it over its siblings. Also the place for caveats (e.g. a judge sharing a model with a debater) -- JSON has no comments, so all prose lives here."
+    },
+    "rounds": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of debate rounds to run before the judge is asked for a verdict."
+    },
+    "max_extra_rounds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Upper bound on additional rounds the judge may request when it is not yet ready to rule. 0 disables extension."
+    },
+    "debaters": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "description": "Every participant that argues. At least two -- a one-sided 'debate' is out of scope for this tool.",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/slot"
+          },
+          {
+            "properties": {
+              "structured_output": {
+                "enum": [
+                  "native",
+                  "fenced_json"
+                ]
+              }
+            }
+          }
+        ],
+        "$comment": "structured_output 'none' is rejected here on purpose: it is only legal on a synthesizer slot, whose output is prose rather than a parsed payload. The driver enforces the same rule."
+      },
+      "$comment": "uniqueItems only rejects byte-identical slot objects. The real rule -- slot ids must be unique across debaters + judge + synthesizer -- is a cross-property constraint that JSON Schema cannot express; the driver enforces it and fails with exit code 2."
+    },
+    "judge": {
+      "$ref": "#/$defs/slot",
+      "description": "The participant that rules on the debate. Its structured payload carries the 'recommendation' enum that drives the driver's control flow.",
+      "$comment": "Two rules the driver enforces that are deliberately NOT encoded here. (1) judge.structured_output MUST be 'native': the recommendation enum drives control flow, so a parse miss is an unrecoverable control-flow failure, unlike a debater miss which is recoverable by re-ask. It is left unconstrained in this schema only because --allow-unstructured-judge exists as an explicit escape hatch, and a roster used under that flag must still validate. (2) The driver WARNS (does not fail) when judge.harness and judge.model both equal some debater's pair -- a fresh process buys session independence, not model independence."
+    },
+    "synthesizer": {
+      "$ref": "#/$defs/slot",
+      "description": "Optional. Writes the final merged plan. Omit it and the judge slot is reused for synthesis.",
+      "$comment": "This is the only slot on which structured_output 'none' is legal, because its deliverable is prose (plan-final.md), not a parsed payload."
+    }
+  },
+  "$defs": {
+    "slot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "harness",
+        "model",
+        "structured_output"
+      ],
+      "description": "One participant: which CLI to spawn, which model to pin, and how to get structured data back out of it.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "description": "Short slot identifier. Artifact paths derive from it (rounds/r<N>-<id>.turn.json, plan-<id>.md), and it is the key used by --model <id>=<model> and by AGENT_KOMBAT_MODEL_<ID>."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Anonymous display name shown in prompts, e.g. 'Participant A' or 'Judge'.",
+          "$comment": "MUST NOT be a model or vendor name. Participants and the judge see labels, never slot ids or models -- anonymity is what stops a judge from ruling on brand reputation instead of argument quality."
+        },
+        "harness": {
+          "enum": [
+            "claude",
+            "codex",
+            "opencode"
+          ],
+          "description": "Which CLI drives this slot."
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Model id passed through to the harness (claude --model, codex exec -m, opencode run -m). Verified locally: claude accepts 'opus' and pinned ids such as 'claude-haiku-4-5-20251001'; codex accepts 'gpt-5.6-sol'; opencode accepts 'deepseek/deepseek-v4-pro' and 'deepseek/deepseek-v4-flash'. opencode model ids have NO cheap-sibling naming convention to exploit: DeepSeek's cheap tier is '-flash', not a '-fast' suffix on the flagship, so nothing may derive a canary model by string-munging this value."
+        },
+        "structured_output": {
+          "enum": [
+            "native",
+            "fenced_json",
+            "none"
+          ],
+          "description": "How the turn payload is obtained. 'native' uses the harness's own schema-constrained output (claude --json-schema, codex exec --output-schema). 'fenced_json' extracts a fenced JSON block out of free-form prose and re-asks on a parse miss -- the only option for opencode, which has no structured-output support at all. 'none' means no payload is parsed.",
+          "$comment": "'none' is legal ONLY on a synthesizer slot; the driver rejects it on a debater or judge slot. It is present in this enum because $defs/slot is shared by all three positions, and is narrowed to native|fenced_json on the debaters items subschema."
+        },
+        "idle_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 900,
+          "description": "Kill the turn if the harness produces no output for this long. Raise it for slower or reasoning-heavy models."
+        },
+        "reasoning_effort": {
+          "type": "string",
+          "minLength": 1,
+          "description": "codex only -- passed as -c model_reasoning_effort=\"...\".",
+          "$comment": "ALWAYS set this on a codex slot. ~/.codex/config.toml pins model_reasoning_effort globally (xhigh on this machine), so a codex slot that omits it silently inherits whatever the machine-wide config says and the roster stops being reproducible. Ignored on claude and opencode slots."
+        },
+        "variant": {
+          "type": "string",
+          "minLength": 1,
+          "description": "opencode only -- passed as --variant. Ignored on claude and codex slots. The driver validates the value against the universal reasoning-effort vocabulary (none|minimal|low|medium|high|xhigh|max) because opencode forwards an unknown variant without error and the provider ignores it, so a typo silently runs at the model's default effort. It does NOT validate the per-model subset, and no test pins it: as of 2026-08-21 models.dev reports 'deepseek/deepseek-v4-pro' declaring low|medium|high and 'deepseek/deepseek-v4-flash' high|max, but that is provider metadata which changes with every model release, so encoding it here would reject valid rosters the day a new tier ships. Check the model's current declaration rather than trusting this line."
+        },
+        "agent": {
+          "type": "string",
+          "minLength": 1,
+          "description": "opencode only -- passed as --agent. Required on every opencode slot; the repo ships 'kombat-debater'. Ignored on claude and codex slots.",
+          "const": "kombat-debater",
+          "$comment": "Must be exactly 'kombat-debater'. opencode has no read-only sandbox flag, and requiring merely SOME agent is not a guarantee: naming a builtin such as 'build' resolves to {\"*\": \"allow\"} (bash and writes enabled) and validation would accept it. The driver enforces this allowlist too (validate_roster)."
+        },
+        "max_reask": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1,
+          "description": "How many times to re-ask a slot whose response failed JSON extraction. Only meaningful when structured_output is 'fenced_json'."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "harness"
+            ],
+            "properties": {
+              "harness": {
+                "const": "opencode"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "agent"
+            ]
+          },
+          "$comment": "The 'opencode slots must set agent' rule IS expressible in draft 2020-12, so it is encoded rather than left to prose. The driver enforces it independently (exit code 2) -- keep both in sync, and do not rely on this branch alone, since a bare JSON-syntax check (the repo's pre-commit check-json hook) never evaluates it."
+        }
+      ],
+      "$comment": "Harness scoping of reasoning_effort (codex), variant and agent (opencode) is documented per-property but not enforced as a prohibition: a stray key from another harness is inert, and forbidding it here would reject rosters the driver accepts."
+    }
+  }
+}

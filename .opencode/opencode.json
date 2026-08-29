@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "bash": {
+      "make deploy*": "ask",
+      "make release*": "ask",
+      "terraform apply*": "ask",
+      "terraform destroy*": "deny",
+      "terraform *destroy*": "deny",
+      "terraform workspace*": "ask",
+      "gh release create*": "ask",
+      "*migrate*up*": "ask",
+      "*migrate*down*": "ask",
+      "python -m *migrate*": "ask"
+    }
+  }
+}

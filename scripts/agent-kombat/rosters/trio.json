@@ -1,0 +1,36 @@
+{
+  "id": "trio",
+  "description": "Three participants, three different vendors: Claude Opus and opencode DeepSeek V4 Pro debate for 2 rounds (up to 1 extra round on the judge's request) and a Codex gpt-5.6-sol judge rules on the outcome. This is the model-independent counterpart to rosters/trio-debate.json -- no participant shares a harness or a model with the judge, so the verdict cannot be explained away as the judge preferring its own priors. Prefer this roster whenever the verdict itself is the deliverable (e.g. picking between two committed plans) rather than the debate transcript. Labels are anonymous so the judge cannot tell which model authored which plan.",
+  "rounds": 2,
+  "max_extra_rounds": 1,
+  "debaters": [
+    {
+      "id": "opus",
+      "label": "Participant A",
+      "harness": "claude",
+      "model": "claude-opus-5",
+      "structured_output": "native",
+      "idle_timeout_seconds": 900
+    },
+    {
+      "id": "deepseek",
+      "label": "Participant B",
+      "harness": "opencode",
+      "model": "deepseek/deepseek-v4-pro",
+      "structured_output": "fenced_json",
+      "idle_timeout_seconds": 1200,
+      "variant": "high",
+      "agent": "kombat-debater",
+      "max_reask": 1
+    }
+  ],
+  "judge": {
+    "id": "judge",
+    "label": "Judge",
+    "harness": "codex",
+    "model": "gpt-5.6-sol",
+    "structured_output": "native",
+    "idle_timeout_seconds": 900,
+    "reasoning_effort": "high"
+  }
+}
